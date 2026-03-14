@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { backendInterface } from "../backend";
 import { createActorWithConfig } from "../config";
 import { getSecretParameter } from "../utils/urlParams";
@@ -9,6 +9,9 @@ const ACTOR_QUERY_KEY = "actor";
 export function useActor() {
   const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
+  // Track the last actor we invalidated for, so we only invalidate once per actor instance
+  const lastInvalidatedActorRef = useRef<backendInterface | null>(null);
+
   const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
     queryFn: async () => {
@@ -36,15 +39,14 @@ export function useActor() {
     enabled: true,
   });
 
-  // When the actor changes, invalidate dependent queries
+  // When the actor first becomes available (or changes), invalidate dependent queries once
   useEffect(() => {
-    if (actorQuery.data) {
+    if (
+      actorQuery.data &&
+      actorQuery.data !== lastInvalidatedActorRef.current
+    ) {
+      lastInvalidatedActorRef.current = actorQuery.data;
       queryClient.invalidateQueries({
-        predicate: (query) => {
-          return !query.queryKey.includes(ACTOR_QUERY_KEY);
-        },
-      });
-      queryClient.refetchQueries({
         predicate: (query) => {
           return !query.queryKey.includes(ACTOR_QUERY_KEY);
         },

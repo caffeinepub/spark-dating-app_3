@@ -30,6 +30,18 @@ type AuthStage =
   | "needs-onboarding"
   | "ready";
 
+/** Wraps a promise with a timeout that resolves to the fallback value if too slow */
+function withTimeout<T>(
+  promise: Promise<T>,
+  fallback: T,
+  ms = 10000,
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { identity, isInitializing } = useInternetIdentity();
   const { actor, isFetching } = useActor();
@@ -55,11 +67,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const [username, onboarded] = await Promise.all([
-          (extActor.getMyUsername?.() ?? Promise.resolve(null)).catch(
-            () => null,
+          withTimeout(
+            (extActor.getMyUsername?.() ?? Promise.resolve(null)).catch(
+              () => null,
+            ),
+            null,
           ),
-          (extActor.hasCompletedOnboarding?.() ?? Promise.resolve(false)).catch(
-            () => false,
+          withTimeout(
+            (
+              extActor.hasCompletedOnboarding?.() ?? Promise.resolve(false)
+            ).catch(() => false),
+            false,
           ),
         ]);
         if (!username) {
