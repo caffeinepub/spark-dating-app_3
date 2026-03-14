@@ -26,11 +26,8 @@ export function useMyProfile() {
     queryKey: ["myProfile"],
     queryFn: async () => {
       if (!actor) return null;
-      const isAuth = await actor.isAuthenticated();
-      if (!isAuth) return null;
-      const following = await actor.getFollowing();
-      if (following.length === 0) return null;
-      return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actor as any).getMyProfile() as Promise<Profile | null>;
     },
     enabled: !!actor && !isFetching,
     staleTime: STALE_MEDIUM,
@@ -41,39 +38,20 @@ export function useDiscoverProfiles() {
   const { actor, isFetching } = useActor();
   return useQuery({
     queryKey: ["discoverProfiles"],
-    queryFn: async () => {
-      if (!actor) return [];
-      const [followers, following, whoILiked, whoLikedMe] = await Promise.all([
-        actor.getFollowers(),
-        actor.getFollowing(),
-        actor.getWhoILiked(),
-        actor.getWhoLikedMe(),
+    queryFn: async (): Promise<{
+      profiles: Profile[];
+      whoILiked: Principal[];
+      following: Principal[];
+    }> => {
+      if (!actor) return { profiles: [], whoILiked: [], following: [] };
+      // Fetch all profiles + social data in parallel
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [allProfiles, whoILiked, following] = await Promise.all([
+        (actor as any).getAllProfiles() as Promise<Profile[]>,
+        actor.getWhoILiked().catch(() => [] as Principal[]),
+        actor.getFollowing().catch(() => [] as Principal[]),
       ]);
-      const allPrincipals = [
-        ...followers,
-        ...following,
-        ...whoILiked,
-        ...whoLikedMe,
-      ];
-      const unique = new Map<string, Principal>();
-      for (const p of allPrincipals) {
-        unique.set(p.toString(), p);
-      }
-      const principals = Array.from(unique.values());
-      if (principals.length === 0) return [];
-      // Batch profile fetches with concurrency limit to avoid flooding the backend
-      const BATCH = 8;
-      const results: Profile[] = [];
-      for (let i = 0; i < principals.length; i += BATCH) {
-        const batch = principals.slice(i, i + BATCH);
-        const profiles = await Promise.all(
-          batch.map((p) => actor.getUserProfile(p).catch(() => null)),
-        );
-        results.push(
-          ...profiles.filter((p): p is Profile => p?.isActive === true),
-        );
-      }
-      return results;
+      return { profiles: allProfiles, whoILiked, following };
     },
     enabled: !!actor && !isFetching,
     staleTime: STALE_SHORT,
@@ -250,6 +228,7 @@ export function useLikeUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["whoILiked"] });
       qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["discoverProfiles"] });
     },
   });
 }
@@ -265,6 +244,7 @@ export function useUnlikeUser() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["whoILiked"] });
       qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["discoverProfiles"] });
     },
   });
 }
@@ -294,6 +274,7 @@ export function useUnfollowUser() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["following"] });
+      qc.invalidateQueries({ queryKey: ["discoverProfiles"] });
     },
   });
 }

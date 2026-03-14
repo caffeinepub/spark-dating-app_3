@@ -452,6 +452,17 @@ actor {
     profiles.keys().toArray().size();
   };
 
+  public query ({ caller }) func getAllProfiles() : async [UserProfile.Profile] {
+    let result = List.empty<UserProfile.Profile>();
+    for ((principal, profile) in profiles.entries()) {
+      if (profile.isActive and principal != caller) {
+        result.add(profile);
+      };
+    };
+    result.toArray();
+  };
+
+
   public query ({ caller }) func isAdmin() : async Bool {
     AccessControl.isAdmin(accessControlState, caller);
   };

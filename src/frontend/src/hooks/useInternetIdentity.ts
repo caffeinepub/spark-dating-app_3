@@ -14,7 +14,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { loadConfig } from "../config";
@@ -150,8 +149,6 @@ export function InternetIdentityProvider({
    */
   createOptions?: AuthClientCreateOptions;
 }>) {
-  // Use a ref to store the AuthClient so changes don't re-trigger the init effect
-  const authClientRef = useRef<AuthClient | undefined>(undefined);
   const [authClient, setAuthClient] = useState<AuthClient | undefined>(
     undefined,
   );
@@ -165,14 +162,14 @@ export function InternetIdentityProvider({
   }, []);
 
   const handleLoginSuccess = useCallback(() => {
-    const latestIdentity = authClientRef.current?.getIdentity();
+    const latestIdentity = authClient?.getIdentity();
     if (!latestIdentity) {
       setErrorMessage("Identity not found after successful login");
       return;
     }
     setIdentity(latestIdentity);
     setStatus("success");
-  }, [setErrorMessage]);
+  }, [authClient, setErrorMessage]);
 
   const handleLoginError = useCallback(
     (maybeError?: string) => {
@@ -182,15 +179,14 @@ export function InternetIdentityProvider({
   );
 
   const login = useCallback(() => {
-    const client = authClientRef.current;
-    if (!client) {
+    if (!authClient) {
       setErrorMessage(
         "AuthClient is not initialized yet, make sure to call `login` on user interaction e.g. click.",
       );
       return;
     }
 
-    const currentIdentity = client.getIdentity();
+    const currentIdentity = authClient.getIdentity();
     if (
       !currentIdentity.getPrincipal().isAnonymous() &&
       currentIdentity instanceof DelegationIdentity &&
@@ -208,21 +204,19 @@ export function InternetIdentityProvider({
     };
 
     setStatus("logging-in");
-    void client.login(options);
-  }, [handleLoginError, handleLoginSuccess, setErrorMessage]);
+    void authClient.login(options);
+  }, [authClient, handleLoginError, handleLoginSuccess, setErrorMessage]);
 
   const clear = useCallback(() => {
-    const client = authClientRef.current;
-    if (!client) {
+    if (!authClient) {
       setErrorMessage("Auth client not initialized");
       return;
     }
 
-    void client
+    void authClient
       .logout()
       .then(() => {
         setIdentity(undefined);
-        authClientRef.current = undefined;
         setAuthClient(undefined);
         setStatus("idle");
         setError(undefined);
@@ -235,19 +229,17 @@ export function InternetIdentityProvider({
             : new Error("Logout failed"),
         );
       });
-  }, [setErrorMessage]);
+  }, [authClient, setErrorMessage]);
 
-  // Initialization effect — only re-runs if createOptions changes, NOT when authClient changes
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         setStatus("initializing");
-        let existingClient = authClientRef.current;
+        let existingClient = authClient;
         if (!existingClient) {
           existingClient = await createAuthClient(createOptions);
           if (cancelled) return;
-          authClientRef.current = existingClient;
           setAuthClient(existingClient);
         }
         const isAuthenticated = await existingClient.isAuthenticated();
@@ -270,7 +262,7 @@ export function InternetIdentityProvider({
     return () => {
       cancelled = true;
     };
-  }, [createOptions]); // authClient removed from deps — use ref instead to avoid re-render loop
+  }, [createOptions, authClient]);
 
   const value = useMemo<ProviderValue>(
     () => ({
@@ -287,9 +279,6 @@ export function InternetIdentityProvider({
     }),
     [identity, login, clear, loginStatus, loginError],
   );
-
-  // Suppress unused variable warning — authClient state kept for potential external consumers
-  void authClient;
 
   return createElement(InternetIdentityReactContext.Provider, {
     value,

@@ -7,7 +7,7 @@ import {
   createRouter,
   useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AuthModal from "./components/AuthModal";
 import Layout from "./components/Layout";
 import { useActor } from "./hooks/useActor";
@@ -49,6 +49,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   const [stage, setStage] = useState<AuthStage>("loading");
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // A counter that, when incremented, forces the auth-check effect to re-run
+  const [authRefreshKey, setAuthRefreshKey] = useState(0);
+  const checkingRef = useRef(false);
+  // Store actor in a ref so the async check always has the latest actor
+  const actorRef = useRef(actor);
+  actorRef.current = actor;
 
   useEffect(() => {
     if (isInitializing) {
@@ -63,8 +69,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       setStage("loading");
       return;
     }
-    const extActor = actor as any;
-    (async () => {
+
+    // Prevent concurrent checks
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+
+    const extActor = actorRef.current as any;
+    // Use the refresh key value so the linter sees it's used
+    const _key = authRefreshKey;
+    void (async () => {
       try {
         const [username, onboarded] = await Promise.all([
           withTimeout(
@@ -91,15 +104,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       } catch {
         setStage("needs-credentials");
         setShowAuthModal(true);
+      } finally {
+        checkingRef.current = false;
       }
     })();
-  }, [identity, isInitializing, actor, isFetching]);
+  }, [identity, isInitializing, actor, isFetching, authRefreshKey]);
 
   useEffect(() => {
     if (stage === "needs-onboarding") {
       navigate({ to: "/onboarding" });
     }
   }, [stage, navigate]);
+
+  const handleRegistrationSuccess = useCallback(() => {
+    setShowAuthModal(false);
+    checkingRef.current = false; // Allow re-check
+    setAuthRefreshKey((k) => k + 1);
+    setStage("loading");
+  }, []);
 
   if (stage === "loading") {
     return (
@@ -120,10 +142,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         <AuthModal
           open={showAuthModal}
           defaultTab="signup"
-          onSuccess={() => {
-            setShowAuthModal(false);
-            setStage("loading");
-          }}
+          onSuccess={handleRegistrationSuccess}
         />
       </>
     );

@@ -88,7 +88,7 @@ export default function AuthModal({
       return;
     }
     if (!extActor) {
-      setSuError("Not connected. Please try again.");
+      setSuError("App is still loading. Please wait a moment and try again.");
       return;
     }
     setSuLoading(true);
@@ -106,10 +106,34 @@ export default function AuthModal({
       } else if (result && "alreadyRegistered" in result) {
         setSuError("You already have an account. Please sign in instead.");
       } else {
-        setSuError("Something went wrong. Please try again.");
+        setSuError("Unexpected response from server. Please try again.");
       }
-    } catch {
-      setSuError("Failed to create account. Please try again.");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : "Unknown error";
+      // Show a user-friendly message but also log for debugging
+      console.error("[Spark] registerWithCredentials error:", msg);
+      if (
+        msg.toLowerCase().includes("not registered") ||
+        msg.toLowerCase().includes("unauthorized")
+      ) {
+        setSuError(
+          "Authentication error. Please refresh the page and try again.",
+        );
+      } else if (
+        msg.toLowerCase().includes("network") ||
+        msg.toLowerCase().includes("fetch")
+      ) {
+        setSuError(
+          "Network error. Please check your connection and try again.",
+        );
+      } else {
+        setSuError(`Account creation failed: ${msg}`);
+      }
     } finally {
       setSuLoading(false);
     }
@@ -126,7 +150,7 @@ export default function AuthModal({
       return;
     }
     if (!extActor) {
-      setSiError("Not connected. Please try again.");
+      setSiError("App is still loading. Please wait a moment and try again.");
       return;
     }
     setSiLoading(true);
@@ -139,8 +163,15 @@ export default function AuthModal({
       } else {
         setSiError("Invalid username or password. Please try again.");
       }
-    } catch {
-      setSiError("Login failed. Please try again.");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : "Unknown error";
+      console.error("[Spark] loginWithCredentials error:", msg);
+      setSiError(`Login failed: ${msg}`);
     } finally {
       setSiLoading(false);
     }
@@ -359,7 +390,7 @@ export default function AuthModal({
               <Button
                 data-ocid="auth.signup.submit_button"
                 onClick={handleSignUp}
-                disabled={suLoading}
+                disabled={suLoading || !extActor}
                 className="w-full gradient-primary text-white border-0 shadow-glow font-semibold"
                 size="lg"
               >
@@ -367,6 +398,11 @@ export default function AuthModal({
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Creating account...
+                  </>
+                ) : !extActor ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
                   </>
                 ) : (
                   "✨ Create My Account"
@@ -437,7 +473,7 @@ export default function AuthModal({
               <Button
                 data-ocid="auth.signin.submit_button"
                 onClick={handleSignIn}
-                disabled={siLoading}
+                disabled={siLoading || !extActor}
                 className="w-full gradient-primary text-white border-0 shadow-glow font-semibold"
                 size="lg"
               >

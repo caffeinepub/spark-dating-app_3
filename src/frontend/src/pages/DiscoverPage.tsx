@@ -9,16 +9,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Search, SlidersHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Profile } from "../backend.d";
 import ProfileCard from "../components/ProfileCard";
-import {
-  useDiscoverProfiles,
-  useFillSampleData,
-  useUserCount,
-} from "../hooks/useQueries";
+import { useDiscoverProfiles } from "../hooks/useQueries";
 
 const INTEREST_FILTERS = [
   "Travel",
@@ -34,42 +29,28 @@ const INTEREST_FILTERS = [
 ];
 
 export default function DiscoverPage() {
-  const { data: profiles, isLoading, refetch } = useDiscoverProfiles();
-  const { data: userCount } = useUserCount();
-  const fillSampleData = useFillSampleData();
-  const qc = useQueryClient();
+  const { data, isLoading, refetch } = useDiscoverProfiles();
 
-  // Read whoILiked and following from cache (already fetched by useDiscoverProfiles)
-  const whoILiked: unknown[] = qc.getQueryData(["whoILiked"]) ?? [];
-  const following: unknown[] = qc.getQueryData(["following"]) ?? [];
+  const profiles = data?.profiles ?? [];
+  const whoILiked = data?.whoILiked ?? [];
+  const following = data?.following ?? [];
 
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("all");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [didFill, setDidFill] = useState(false);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally limited deps
-  useEffect(() => {
-    if (!didFill && userCount !== undefined && userCount === 0n) {
-      setDidFill(true);
-      fillSampleData.mutate(undefined, { onSuccess: () => refetch() });
-    }
-  }, [userCount, didFill]);
 
   const likedSet = useMemo(
-    () =>
-      new Set((whoILiked as { toString(): string }[]).map((p) => p.toString())),
+    () => new Set(whoILiked.map((p) => p.toString())),
     [whoILiked],
   );
   const followingSet = useMemo(
-    () =>
-      new Set((following as { toString(): string }[]).map((p) => p.toString())),
+    () => new Set(following.map((p) => p.toString())),
     [following],
   );
 
   const filtered = useMemo(() => {
-    return (profiles ?? []).filter((p: Profile) => {
+    return profiles.filter((p: Profile) => {
       if (search && !p.displayName.toLowerCase().includes(search.toLowerCase()))
         return false;
       if (genderFilter !== "all" && p.gender !== genderFilter) return false;
@@ -166,7 +147,7 @@ export default function DiscoverPage() {
       )}
 
       {/* Grid */}
-      {isLoading || fillSampleData.isPending ? (
+      {isLoading ? (
         <div
           data-ocid="discover.loading_state"
           className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"

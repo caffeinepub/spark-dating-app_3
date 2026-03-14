@@ -64,6 +64,7 @@ export interface backendInterface {
     fillSampleData(): Promise<void>;
     followUser(followedUserId: Principal): Promise<void>;
     getAllConversations(): Promise<Array<[Principal, Array<Message>]>>;
+    getAllProfiles(): Promise<Array<Profile>>;
     getCallerUserRole(): Promise<UserRole>;
     getConversationsWithUser(otherUser: Principal): Promise<Array<Message>>;
     getFollowers(): Promise<Array<Principal>>;

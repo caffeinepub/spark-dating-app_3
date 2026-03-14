@@ -21,7 +21,9 @@ export default function AdminPage() {
   const navigate = useNavigate();
   const { data: isAdmin, isLoading: checkingAdmin } = useIsAdmin();
   const { data: userCount } = useUserCount();
-  const { data: profiles, isLoading: loadingProfiles } = useDiscoverProfiles();
+  const { data, isLoading: loadingProfiles } = useDiscoverProfiles();
+
+  const profiles = data?.profiles ?? [];
 
   if (checkingAdmin) {
     return (
@@ -51,7 +53,7 @@ export default function AdminPage() {
     );
   }
 
-  const activeProfiles = (profiles ?? []).filter((p) => p.isActive);
+  const activeProfiles = profiles.filter((p) => p.isActive);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -96,7 +98,7 @@ export default function AdminPage() {
             className="font-display text-3xl font-bold"
             style={{ color: "oklch(0.55 0.22 295)" }}
           >
-            {(profiles ?? []).length}
+            {profiles.length}
           </p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 shadow-card">
@@ -122,7 +124,7 @@ export default function AdminPage() {
               <Skeleton key={k} className="h-12 w-full" />
             ))}
           </div>
-        ) : (profiles ?? []).length === 0 ? (
+        ) : profiles.length === 0 ? (
           <div
             data-ocid="admin.empty_state"
             className="p-10 text-center text-muted-foreground"
@@ -142,7 +144,7 @@ export default function AdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(profiles ?? []).map((profile, i) => (
+                {profiles.map((profile, i) => (
                   <TableRow
                     key={profile.principal?.toString() ?? i}
                     data-ocid={`admin.row.${i + 1}`}
