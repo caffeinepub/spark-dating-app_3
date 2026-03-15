@@ -9,11 +9,11 @@ import {
 import {
   Bell,
   Compass,
-  Flame,
   Heart,
   Home,
   LogOut,
   MessageCircle,
+  Search,
   Shield,
   User,
 } from "lucide-react";
@@ -24,6 +24,7 @@ import { useUnreadCount } from "../hooks/useQueries";
 
 const navItems = [
   { to: "/feed", icon: Home, label: "Feed", ocid: "nav.feed_link" },
+  { to: "/search", icon: Search, label: "Search", ocid: "nav.search_link" },
   {
     to: "/discover",
     icon: Compass,

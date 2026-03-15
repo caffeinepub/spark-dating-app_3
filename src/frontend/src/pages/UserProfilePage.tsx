@@ -10,7 +10,7 @@ import {
   UserCheck,
   UserPlus,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useFollowUser,
   useFollowing,
@@ -25,21 +25,37 @@ import {
 export default function UserProfilePage() {
   const { userId } = useParams({ from: "/layout/profile/$userId" });
   const navigate = useNavigate();
-  let principal: Principal | null = null;
-  try {
-    if (userId) principal = userId as unknown as Principal;
-  } catch {
-    principal = null;
-  }
+  const [principal, setPrincipal] = useState<Principal | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      try {
+        const { Principal } = await import("@icp-sdk/core/principal");
+        setPrincipal(Principal.fromText(userId));
+      } catch {
+        setPrincipal(null);
+      }
+    })();
+  }, [userId]);
 
   const { data: profile, isLoading } = useUserProfile(principal);
   const { data: whoILiked } = useWhoILiked();
   const { data: following } = useFollowing();
   const { data: matches } = useMatches();
 
-  const likedSet = new Set((whoILiked ?? []).map((p) => p.toString()));
-  const followingSet = new Set((following ?? []).map((p) => p.toString()));
-  const matchSet = new Set((matches ?? []).map((p) => p.principal?.toString()));
+  const likedSet = useMemo(
+    () => new Set((whoILiked ?? []).map((p) => p.toString())),
+    [whoILiked],
+  );
+  const followingSet = useMemo(
+    () => new Set((following ?? []).map((p) => p.toString())),
+    [following],
+  );
+  const matchSet = useMemo(
+    () => new Set((matches ?? []).map((p) => p.principal?.toString())),
+    [matches],
+  );
 
   const isLiked = likedSet.has(userId ?? "");
   const isFollowing = followingSet.has(userId ?? "");
@@ -75,7 +91,8 @@ export default function UserProfilePage() {
     }
   };
 
-  if (isLoading) {
+  // Show loading while principal is being parsed or profile is loading
+  if (!principal || isLoading) {
     return (
       <div className="container mx-auto max-w-lg px-4 py-8">
         <Skeleton className="h-10 w-24 mb-6" />
@@ -106,7 +123,7 @@ export default function UserProfilePage() {
       <button
         type="button"
         onClick={() => navigate({ to: "/discover" })}
-        data-ocid="profile.edit_button"
+        data-ocid="profile.back_button"
         className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" /> Back

@@ -22,6 +22,7 @@ import MessagesPage from "./pages/MessagesPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import OwnProfilePage from "./pages/OwnProfilePage";
+import SearchPage from "./pages/SearchPage";
 import UserProfilePage from "./pages/UserProfilePage";
 
 type AuthStage =
@@ -55,6 +56,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   actorRef.current = actor;
 
   useEffect(() => {
+    void authRefreshKey; // trigger re-check after registration
     if (isInitializing) {
       setStage("loading");
       return;
@@ -72,7 +74,6 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     checkingRef.current = true;
 
     const extActor = actorRef.current as any;
-    const _key = authRefreshKey;
     void (async () => {
       try {
         const [username, onboarded] = await Promise.all([
@@ -208,6 +209,12 @@ const feedRoute = createRoute({
   component: FeedPage,
 });
 
+const searchRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/search",
+  component: SearchPage,
+});
+
 const discoverRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/discover",
@@ -261,6 +268,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   layoutRoute.addChildren([
     feedRoute,
+    searchRoute,
     discoverRoute,
     matchesRoute,
     messagesRoute,
