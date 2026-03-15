@@ -15,6 +15,7 @@ import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import AdminPage from "./pages/AdminPage";
 import ChatPage from "./pages/ChatPage";
 import DiscoverPage from "./pages/DiscoverPage";
+import FeedPage from "./pages/FeedPage";
 import LandingPage from "./pages/LandingPage";
 import MatchesPage from "./pages/MatchesPage";
 import MessagesPage from "./pages/MessagesPage";
@@ -30,7 +31,6 @@ type AuthStage =
   | "needs-onboarding"
   | "ready";
 
-/** Wraps a promise with a timeout that resolves to the fallback value if too slow */
 function withTimeout<T>(
   promise: Promise<T>,
   fallback: T,
@@ -49,10 +49,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   const [stage, setStage] = useState<AuthStage>("loading");
   const [showAuthModal, setShowAuthModal] = useState(false);
-  // A counter that, when incremented, forces the auth-check effect to re-run
   const [authRefreshKey, setAuthRefreshKey] = useState(0);
   const checkingRef = useRef(false);
-  // Store actor in a ref so the async check always has the latest actor
   const actorRef = useRef(actor);
   actorRef.current = actor;
 
@@ -70,12 +68,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Prevent concurrent checks
     if (checkingRef.current) return;
     checkingRef.current = true;
 
     const extActor = actorRef.current as any;
-    // Use the refresh key value so the linter sees it's used
     const _key = authRefreshKey;
     void (async () => {
       try {
@@ -118,7 +114,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   const handleRegistrationSuccess = useCallback(() => {
     setShowAuthModal(false);
-    checkingRef.current = false; // Allow re-check
+    checkingRef.current = false;
     setAuthRefreshKey((k) => k + 1);
     setStage("loading");
   }, []);
@@ -161,7 +157,7 @@ function AppRoot() {
 
   useEffect(() => {
     if (identity) {
-      navigate({ to: "/discover" });
+      navigate({ to: "/feed" });
     }
   }, [identity, navigate]);
 
@@ -204,6 +200,12 @@ const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
   component: OnboardingPage,
+});
+
+const feedRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/feed",
+  component: FeedPage,
 });
 
 const discoverRoute = createRoute({
@@ -258,6 +260,7 @@ const routeTree = rootRoute.addChildren([
   landingRoute,
   onboardingRoute,
   layoutRoute.addChildren([
+    feedRoute,
     discoverRoute,
     matchesRoute,
     messagesRoute,

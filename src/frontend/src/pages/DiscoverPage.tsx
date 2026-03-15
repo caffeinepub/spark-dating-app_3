@@ -29,7 +29,9 @@ const INTEREST_FILTERS = [
 ];
 
 export default function DiscoverPage() {
-  const { data, isLoading, refetch } = useDiscoverProfiles();
+  // isLoading = true only on first load (no cached data)
+  // isFetching = true on every refetch (including background)
+  const { data, isLoading, isFetching, refetch } = useDiscoverProfiles();
 
   const profiles = data?.profiles ?? [];
   const whoILiked = data?.whoILiked ?? [];
@@ -72,9 +74,18 @@ export default function DiscoverPage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold mb-1">Discover</h1>
-        <p className="text-muted-foreground">Find your perfect connection</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold mb-1">Discover</h1>
+          <p className="text-muted-foreground">Find your perfect connection</p>
+        </div>
+        {/* Subtle background refresh indicator */}
+        {isFetching && !isLoading && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            <span>Updating...</span>
+          </div>
+        )}
       </div>
 
       {/* Search & Filter bar */}
@@ -146,7 +157,7 @@ export default function DiscoverPage() {
         </p>
       )}
 
-      {/* Grid */}
+      {/* Grid — show skeleton only on initial load, not on background refetch */}
       {isLoading ? (
         <div
           data-ocid="discover.loading_state"

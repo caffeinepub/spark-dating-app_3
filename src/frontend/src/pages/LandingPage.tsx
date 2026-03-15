@@ -34,7 +34,7 @@ const features = [
   },
   {
     icon: Zap,
-    title: "Instant Sparks",
+    title: "Instant Connections",
     desc: "Like, follow, and connect in seconds. When it's mutual, you'll both know immediately.",
     num: "04",
   },
@@ -127,11 +127,13 @@ export default function LandingPage({
       <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">
         <div className="container mx-auto flex items-center justify-between h-16 px-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center shadow-glow">
-              <Flame className="w-4 h-4 text-white" />
-            </div>
+            <img
+              src="/assets/generated/nibba-nibbi-logo-transparent.png"
+              className="h-10 w-auto object-contain"
+              alt="Nibba Nibbi"
+            />
             <span className="font-display font-bold text-xl gradient-text">
-              Spark
+              Nibba Nibbi
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -184,14 +186,21 @@ export default function LandingPage({
             <span className="w-2 h-2 rounded-full gradient-primary inline-block" />
             The modern dating experience
           </div>
-          <h1 className="font-display text-7xl md:text-9xl font-bold text-white mb-3 leading-[0.9] tracking-tight">
-            Spark
+          <div className="flex justify-center mb-4">
+            <img
+              src="/assets/generated/nibba-nibbi-logo-transparent.png"
+              className="h-24 md:h-32 w-auto object-contain drop-shadow-2xl"
+              alt="Nibba Nibbi"
+            />
+          </div>
+          <h1 className="font-display text-6xl md:text-8xl font-bold text-white mb-3 leading-[0.9] tracking-tight">
+            Nibba Nibbi
           </h1>
           <p className="text-2xl md:text-3xl font-display italic text-white/80 mb-6 leading-snug">
-            Find your flame.
+            Find your perfect match.
           </p>
           <p className="text-white/60 text-base md:text-lg mb-10 max-w-sm mx-auto leading-relaxed">
-            Connect with extraordinary people who share your spark.
+            Connect with extraordinary people and find your true love.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -231,7 +240,7 @@ export default function LandingPage({
         <div className="container mx-auto max-w-5xl">
           <div className="mb-20">
             <p className="text-primary text-sm font-semibold tracking-widest uppercase mb-3">
-              Why Spark
+              Why Nibba Nibbi
             </p>
             <h2 className="font-display text-4xl md:text-6xl max-w-lg leading-tight">
               Everything you need to find{" "}
@@ -281,11 +290,11 @@ export default function LandingPage({
               {
                 step: "2",
                 title: "Create Your Username",
-                desc: "Choose a unique username and password to personalize your Spark identity.",
+                desc: "Choose a unique username and password to personalize your Nibba Nibbi identity.",
               },
               {
                 step: "3",
-                title: "Find Your Spark",
+                title: "Find Your Match",
                 desc: "Set up your profile and start discovering people who match your vibe.",
               },
             ].map(({ step, title, desc }) => (
@@ -312,7 +321,7 @@ export default function LandingPage({
         />
         <div className="container mx-auto max-w-2xl text-center relative z-10">
           <h2 className="font-display text-4xl md:text-6xl font-bold mb-5 leading-tight">
-            Ready to find your spark?
+            Ready to find your match?
           </h2>
           <p className="text-white/75 text-lg mb-10 max-w-md mx-auto">
             Join the community. No subscriptions, no tricks — just real

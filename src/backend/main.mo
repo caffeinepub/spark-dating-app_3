@@ -8,9 +8,12 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
+
+
 
 actor {
   // State
@@ -27,12 +30,12 @@ actor {
     };
     public type Id = Nat;
 
+    public type VisibleInterest = {};
+
     public type Interest = {
       id : Nat;
       name : Text;
     };
-
-    public type VisibleInterest = {};
 
     public type InterestDisplayPrefs = {
       showGender : Bool;
@@ -47,6 +50,7 @@ actor {
       id : Nat;
       principal : Principal;
       displayName : Text;
+      bio : Text;
       lastActive : Int;
       photoLink : Text;
       isActive : Bool;
@@ -83,10 +87,77 @@ actor {
     isRead : Bool;
   };
 
+  // Internal post/reel types without embedded likes
+  type PostData = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    caption : Text;
+    timestamp : Int;
+    commentCount : Nat;
+  };
+
+  type ReelData = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    caption : Text;
+    timestamp : Int;
+    commentCount : Nat;
+  };
+
+  // Public types with likes array (computed on read)
+  type Post = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    caption : Text;
+    timestamp : Int;
+    likes : [Principal];
+    commentCount : Nat;
+  };
+
+  type Reel = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    caption : Text;
+    timestamp : Int;
+    likes : [Principal];
+    commentCount : Nat;
+  };
+
+  type Story = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    timestamp : Int;
+  };
+
+  type Comment = {
+    id : Nat;
+    contentId : Nat;
+    author : Principal;
+    text : Text;
+    timestamp : Int;
+  };
+
   // Comparison functions for sorting
   module Message {
     public func compareByTimestamp(a : Message, b : Message) : Order.Order {
       Int.compare(a.timestamp, b.timestamp);
+    };
+  };
+
+  module PostSort {
+    public func compareByTimestampDesc(a : Post, b : Post) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp);
+    };
+  };
+
+  module ReelSort {
+    public func compareByTimestampDesc(a : Reel, b : Reel) : Order.Order {
+      Int.compare(b.timestamp, a.timestamp);
     };
   };
 
@@ -96,6 +167,56 @@ actor {
   let notifications = Map.empty<Principal, List.List<Notification>>();
   let messages = Map.empty<Principal, List.List<Message>>();
   let profilesInfo = Map.empty<Principal, UserProfile.InterestDisplayPrefs>();
+
+  // Posts, Reels, Stories state
+  var nextPostId : Nat = 1;
+  var nextReelId : Nat = 1;
+  var nextStoryId : Nat = 1;
+  var nextCommentId : Nat = 1;
+
+  let postsData = Map.empty<Nat, PostData>();
+  let reelsData = Map.empty<Nat, ReelData>();
+  let stories = Map.empty<Nat, Story>();
+  let postComments = Map.empty<Nat, List.List<Comment>>();
+  let reelComments = Map.empty<Nat, List.List<Comment>>();
+
+  // Separate like lists for posts and reels (avoids array mutation issues)
+  let postLikesMap = Map.empty<Nat, List.List<Principal>>();
+  let reelLikesMap = Map.empty<Nat, List.List<Principal>>();
+
+  // Helper: build Post from PostData + likes
+  func buildPost(pd : PostData) : Post {
+    let postLikes = switch (postLikesMap.get(pd.id)) {
+      case (null) { [] };
+      case (?lst) { lst.toArray() };
+    };
+    {
+      id = pd.id;
+      author = pd.author;
+      blobId = pd.blobId;
+      caption = pd.caption;
+      timestamp = pd.timestamp;
+      likes = postLikes;
+      commentCount = pd.commentCount;
+    };
+  };
+
+  // Helper: build Reel from ReelData + likes
+  func buildReel(rd : ReelData) : Reel {
+    let reelLikes = switch (reelLikesMap.get(rd.id)) {
+      case (null) { [] };
+      case (?lst) { lst.toArray() };
+    };
+    {
+      id = rd.id;
+      author = rd.author;
+      blobId = rd.blobId;
+      caption = rd.caption;
+      timestamp = rd.timestamp;
+      likes = reelLikes;
+      commentCount = rd.commentCount;
+    };
+  };
 
   func isMatched(user1 : Principal, user2 : Principal) : Bool {
     switch (likes.get(user1)) {
@@ -126,6 +247,17 @@ actor {
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async UserProfile.Profile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+        Runtime.trap("Unauthorized: Only users can view profiles");
+      };
+      let callerLikesUser = isMatched(caller, user);
+      let userLikesCaller = isMatched(user, caller);
+      if (not (callerLikesUser and userLikesCaller)) {
+        Runtime.trap("Unauthorized: Can only view profiles of matched users");
+      };
+    };
+
     switch (profiles.get(user)) {
       case (null) { Runtime.trap("Profile does not exist") };
       case (?profile) { profile };
@@ -453,6 +585,10 @@ actor {
   };
 
   public query ({ caller }) func getAllProfiles() : async [UserProfile.Profile] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can browse profiles");
+    };
+
     let result = List.empty<UserProfile.Profile>();
     for ((principal, profile) in profiles.entries()) {
       if (profile.isActive and principal != caller) {
@@ -461,7 +597,6 @@ actor {
     };
     result.toArray();
   };
-
 
   public query ({ caller }) func isAdmin() : async Bool {
     AccessControl.isAdmin(accessControlState, caller);
@@ -477,6 +612,7 @@ actor {
         id = 1;
         principal = Principal.fromActor(actor "1");
         displayName = "Alice";
+        bio = "Love hiking and adventures!";
         lastActive = Time.now();
         photoLink = "https://example.com/alice.jpg";
         isActive = true;
@@ -488,6 +624,7 @@ actor {
         id = 2;
         principal = Principal.fromActor(actor "2");
         displayName = "Bob";
+        bio = "Bookworm";
         lastActive = Time.now();
         photoLink = "https://example.com/bob.jpg";
         isActive = true;
@@ -499,6 +636,7 @@ actor {
         id = 3;
         principal = Principal.fromActor(actor "3");
         displayName = "Carol";
+        bio = "Food is life";
         lastActive = Time.now();
         photoLink = "https://example.com/carol.jpg";
         isActive = true;
@@ -534,18 +672,15 @@ actor {
   };
 
   public shared ({ caller }) func registerWithCredentials(username : Text, passwordHash : Text) : async { #ok; #usernameTaken; #alreadyRegistered } {
-    // Check if caller already has a username
     switch (principalToUsername.get(caller)) {
       case (?_) { return #alreadyRegistered };
       case (null) {};
     };
-    // Check if username is taken
     switch (usernameCredentials.get(username)) {
       case (?_) { return #usernameTaken };
       case (null) {
         usernameCredentials.add(username, { principal = caller; passwordHash = passwordHash });
         principalToUsername.add(caller, username);
-        // Ensure user has the #user role in access control
         switch (accessControlState.userRoles.get(caller)) {
           case (null) {
             accessControlState.userRoles.add(caller, #user);
@@ -567,10 +702,16 @@ actor {
   };
 
   public query ({ caller }) func getMyProfile() : async ?UserProfile.Profile {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view their profile");
+    };
     profiles.get(caller);
   };
 
   public query ({ caller }) func hasCompletedOnboarding() : async Bool {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can check onboarding status");
+    };
     switch (profiles.get(caller)) {
       case (null) { false };
       case (?profile) { profile.displayName != "" };
@@ -578,7 +719,330 @@ actor {
   };
 
   public query ({ caller }) func getMyUsername() : async ?Text {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view their username");
+    };
     principalToUsername.get(caller);
+  };
+
+  // ==================== POSTS ====================
+
+  public shared ({ caller }) func createPost(blobId : Text, caption : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create posts");
+    };
+    let postId = nextPostId;
+    nextPostId += 1;
+    let newPost : PostData = {
+      id = postId;
+      author = caller;
+      blobId;
+      caption;
+      timestamp = Time.now();
+      commentCount = 0;
+    };
+    postsData.add(postId, newPost);
+    postId;
+  };
+
+  public query ({ caller }) func getAllPosts() : async [Post] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view posts");
+    };
+    let result = List.empty<Post>();
+    for ((_, pd) in postsData.entries()) {
+      result.add(buildPost(pd));
+    };
+    result.toArray().sort(PostSort.compareByTimestampDesc);
+  };
+
+  public query ({ caller }) func getPostsByUser(user : Principal) : async [Post] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view posts");
+    };
+    let result = List.empty<Post>();
+    for ((_, pd) in postsData.entries()) {
+      if (pd.author == user) {
+        result.add(buildPost(pd));
+      };
+    };
+    result.toArray().sort(PostSort.compareByTimestampDesc);
+  };
+
+  public shared ({ caller }) func likePost(postId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can like posts");
+    };
+    switch (postsData.get(postId)) {
+      case (null) { Runtime.trap("Post not found") };
+      case (?_) {
+        switch (postLikesMap.get(postId)) {
+          case (null) {
+            postLikesMap.add(postId, List.fromArray<Principal>([caller]));
+          };
+          case (?existing) {
+            if (not existing.any(func(p) { p == caller })) {
+              existing.add(caller);
+              postLikesMap.add(postId, existing);
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func unlikePost(postId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can unlike posts");
+    };
+    switch (postLikesMap.get(postId)) {
+      case (null) { () };
+      case (?existing) {
+        let filtered = existing.filter(func(p) { p != caller });
+        postLikesMap.add(postId, filtered);
+      };
+    };
+  };
+
+  public shared ({ caller }) func commentOnPost(postId : Nat, text : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can comment");
+    };
+    switch (postsData.get(postId)) {
+      case (null) { Runtime.trap("Post not found") };
+      case (?pd) {
+        let commentId = nextCommentId;
+        nextCommentId += 1;
+        let newComment : Comment = {
+          id = commentId;
+          contentId = postId;
+          author = caller;
+          text;
+          timestamp = Time.now();
+        };
+        switch (postComments.get(postId)) {
+          case (null) {
+            postComments.add(postId, List.fromArray<Comment>([newComment]));
+          };
+          case (?existing) {
+            existing.add(newComment);
+            postComments.add(postId, existing);
+          };
+        };
+        postsData.add(postId, { pd with commentCount = pd.commentCount + 1 });
+        commentId;
+      };
+    };
+  };
+
+  public query ({ caller }) func getPostComments(postId : Nat) : async [Comment] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view comments");
+    };
+    switch (postComments.get(postId)) {
+      case (null) { [] };
+      case (?commentList) { commentList.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func deletePost(postId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete posts");
+    };
+    switch (postsData.get(postId)) {
+      case (null) { Runtime.trap("Post not found") };
+      case (?pd) {
+        if (pd.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Can only delete your own posts");
+        };
+        postsData.remove(postId);
+        postLikesMap.remove(postId);
+        postComments.remove(postId);
+      };
+    };
+  };
+
+  // ==================== REELS ====================
+
+  public shared ({ caller }) func createReel(blobId : Text, caption : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create reels");
+    };
+    let reelId = nextReelId;
+    nextReelId += 1;
+    let newReel : ReelData = {
+      id = reelId;
+      author = caller;
+      blobId;
+      caption;
+      timestamp = Time.now();
+      commentCount = 0;
+    };
+    reelsData.add(reelId, newReel);
+    reelId;
+  };
+
+  public query ({ caller }) func getAllReels() : async [Reel] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view reels");
+    };
+    let result = List.empty<Reel>();
+    for ((_, rd) in reelsData.entries()) {
+      result.add(buildReel(rd));
+    };
+    result.toArray().sort(ReelSort.compareByTimestampDesc);
+  };
+
+  public query ({ caller }) func getReelsByUser(user : Principal) : async [Reel] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view reels");
+    };
+    let result = List.empty<Reel>();
+    for ((_, rd) in reelsData.entries()) {
+      if (rd.author == user) {
+        result.add(buildReel(rd));
+      };
+    };
+    result.toArray().sort(ReelSort.compareByTimestampDesc);
+  };
+
+  public shared ({ caller }) func likeReel(reelId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can like reels");
+    };
+    switch (reelsData.get(reelId)) {
+      case (null) { Runtime.trap("Reel not found") };
+      case (?_) {
+        switch (reelLikesMap.get(reelId)) {
+          case (null) {
+            reelLikesMap.add(reelId, List.fromArray<Principal>([caller]));
+          };
+          case (?existing) {
+            if (not existing.any(func(p) { p == caller })) {
+              existing.add(caller);
+              reelLikesMap.add(reelId, existing);
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func unlikeReel(reelId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can unlike reels");
+    };
+    switch (reelLikesMap.get(reelId)) {
+      case (null) { () };
+      case (?existing) {
+        let filtered = existing.filter(func(p) { p != caller });
+        reelLikesMap.add(reelId, filtered);
+      };
+    };
+  };
+
+  public shared ({ caller }) func commentOnReel(reelId : Nat, text : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can comment");
+    };
+    switch (reelsData.get(reelId)) {
+      case (null) { Runtime.trap("Reel not found") };
+      case (?rd) {
+        let commentId = nextCommentId;
+        nextCommentId += 1;
+        let newComment : Comment = {
+          id = commentId;
+          contentId = reelId;
+          author = caller;
+          text;
+          timestamp = Time.now();
+        };
+        switch (reelComments.get(reelId)) {
+          case (null) {
+            reelComments.add(reelId, List.fromArray<Comment>([newComment]));
+          };
+          case (?existing) {
+            existing.add(newComment);
+            reelComments.add(reelId, existing);
+          };
+        };
+        reelsData.add(reelId, { rd with commentCount = rd.commentCount + 1 });
+        commentId;
+      };
+    };
+  };
+
+  public query ({ caller }) func getReelComments(reelId : Nat) : async [Comment] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view comments");
+    };
+    switch (reelComments.get(reelId)) {
+      case (null) { [] };
+      case (?commentList) { commentList.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func deleteReel(reelId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete reels");
+    };
+    switch (reelsData.get(reelId)) {
+      case (null) { Runtime.trap("Reel not found") };
+      case (?rd) {
+        if (rd.author != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Can only delete your own reels");
+        };
+        reelsData.remove(reelId);
+        reelLikesMap.remove(reelId);
+        reelComments.remove(reelId);
+      };
+    };
+  };
+
+  // ==================== STORIES ====================
+
+  public shared ({ caller }) func createStory(blobId : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create stories");
+    };
+    let storyId = nextStoryId;
+    nextStoryId += 1;
+    let newStory : Story = {
+      id = storyId;
+      author = caller;
+      blobId;
+      timestamp = Time.now();
+    };
+    stories.add(storyId, newStory);
+    storyId;
+  };
+
+  public query ({ caller }) func getActiveStories() : async [Story] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view stories");
+    };
+    let oneDayNanos : Int = 86_400_000_000_000;
+    let now = Time.now();
+    let result = List.empty<Story>();
+    for ((_, story) in stories.entries()) {
+      if (now - story.timestamp < oneDayNanos) {
+        result.add(story);
+      };
+    };
+    result.toArray();
+  };
+
+  public shared ({ caller }) func deleteExpiredStories() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized");
+    };
+    let oneDayNanos : Int = 86_400_000_000_000;
+    let now = Time.now();
+    for ((storyId, story) in stories.entries()) {
+      if (now - story.timestamp >= oneDayNanos) {
+        stories.remove(storyId);
+      };
+    };
   };
 
 };

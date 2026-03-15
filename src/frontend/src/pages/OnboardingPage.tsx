@@ -68,9 +68,14 @@ export default function OnboardingPage() {
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setPhotoPreview(url);
-    setPhotoLink(url);
+    const previewUrl = URL.createObjectURL(file);
+    setPhotoPreview(previewUrl);
+    // Convert to base64 for persistent storage
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotoLink(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const addInterest = (name?: string) => {
@@ -99,8 +104,9 @@ export default function OnboardingPage() {
       return;
     }
     setIsSaving(true);
-    const profile: Profile = {
+    const profile = {
       id: 0n,
+      bio: "",
       displayName: displayName.trim(),
       photoLink,
       gender,
@@ -109,10 +115,10 @@ export default function OnboardingPage() {
       isActive: true,
       lastActive: BigInt(Date.now()) * 1_000_000n,
       principal: identity.getPrincipal(),
-    };
+    } as unknown as Profile;
     saveProfile.mutate(profile, {
       onSuccess: () => {
-        toast.success("Profile saved! Time to find your spark ✨");
+        toast.success("Profile saved! Time to find your match ✨");
         navigate({ to: "/discover" });
       },
       onError: () => {
@@ -126,11 +132,13 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-12">
       {/* Brand mark */}
       <div className="flex items-center gap-2 mb-10">
-        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center shadow-glow">
-          <Flame className="w-5 h-5 text-white" />
-        </div>
+        <img
+          src="/assets/generated/nibba-nibbi-logo-transparent.png"
+          className="h-10 w-auto object-contain"
+          alt="Nibba Nibbi"
+        />
         <span className="font-display font-bold text-2xl gradient-text">
-          Spark
+          Nibba Nibbi
         </span>
       </div>
 
@@ -388,7 +396,7 @@ export default function OnboardingPage() {
               ) : (
                 <>
                   <Flame className="w-4 h-4" />
-                  Find My Spark!
+                  Find My Match!
                 </>
               )}
             </Button>

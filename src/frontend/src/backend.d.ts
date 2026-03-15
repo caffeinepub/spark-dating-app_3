@@ -36,6 +36,7 @@ export interface Interest {
 }
 export interface Profile {
     id: bigint;
+    bio: string;
     photoLink: string;
     principal: Principal;
     displayName: string;
@@ -44,6 +45,37 @@ export interface Profile {
     genderPreference: Gender;
     gender: Gender;
     lastActive: bigint;
+}
+export interface Post {
+    id: bigint;
+    author: Principal;
+    blobId: string;
+    caption: string;
+    timestamp: bigint;
+    likes: Array<Principal>;
+    commentCount: bigint;
+}
+export interface Reel {
+    id: bigint;
+    author: Principal;
+    blobId: string;
+    caption: string;
+    timestamp: bigint;
+    likes: Array<Principal>;
+    commentCount: bigint;
+}
+export interface Story {
+    id: bigint;
+    author: Principal;
+    blobId: string;
+    timestamp: bigint;
+}
+export interface Comment {
+    id: bigint;
+    contentId: bigint;
+    author: Principal;
+    text: string;
+    timestamp: bigint;
 }
 export enum Gender {
     other = "other",
@@ -55,10 +87,11 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
-export type RegisterResult =
-    | { ok: null }
-    | { usernameTaken: null }
-    | { alreadyRegistered: null };
+export enum Variant_ok_alreadyRegistered_usernameTaken {
+    ok = "ok",
+    alreadyRegistered = "alreadyRegistered",
+    usernameTaken = "usernameTaken"
+}
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     fillSampleData(): Promise<void>;
@@ -69,17 +102,23 @@ export interface backendInterface {
     getConversationsWithUser(otherUser: Principal): Promise<Array<Message>>;
     getFollowers(): Promise<Array<Principal>>;
     getFollowing(): Promise<Array<Principal>>;
+    getMyProfile(): Promise<Profile | null>;
+    getMyUsername(): Promise<string | null>;
     getNotifications(): Promise<Array<Notification>>;
     getUnreadNotificationCount(): Promise<bigint>;
     getUserCount(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<Profile>;
     getWhoILiked(): Promise<Array<Principal>>;
     getWhoLikedMe(): Promise<Array<Principal>>;
+    hasCompletedOnboarding(): Promise<boolean>;
     isAdmin(): Promise<boolean>;
     isAuthenticated(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
+    isUsernameAvailable(username: string): Promise<boolean>;
     likeUser(likedUserId: Principal): Promise<void>;
+    loginWithCredentials(username: string, passwordHash: string): Promise<boolean>;
     markNotificationAsRead(_timestamp: bigint): Promise<void>;
+    registerWithCredentials(username: string, passwordHash: string): Promise<Variant_ok_alreadyRegistered_usernameTaken>;
     saveCallerUserProfile(profile: Profile): Promise<void>;
     saveCallerUserProfileInfo(profileInfo: InterestDisplayPrefs): Promise<void>;
     sendMessage(recipient: Principal, content: string): Promise<void>;
@@ -87,11 +126,26 @@ export interface backendInterface {
     setOnline(): Promise<void>;
     unfollowUser(unfollowedUserId: Principal): Promise<void>;
     unlikeUser(_unlikedUserId: Principal): Promise<void>;
-    // Credential-based auth
-    registerWithCredentials(username: string, passwordHash: string): Promise<RegisterResult>;
-    loginWithCredentials(username: string, passwordHash: string): Promise<boolean>;
-    isUsernameAvailable(username: string): Promise<boolean>;
-    getMyProfile(): Promise<Profile | null>;
-    hasCompletedOnboarding(): Promise<boolean>;
-    getMyUsername(): Promise<string | null>;
+    // Posts
+    createPost(blobId: string, caption: string): Promise<bigint>;
+    getAllPosts(): Promise<Array<Post>>;
+    getPostsByUser(user: Principal): Promise<Array<Post>>;
+    likePost(postId: bigint): Promise<void>;
+    unlikePost(postId: bigint): Promise<void>;
+    commentOnPost(postId: bigint, text: string): Promise<bigint>;
+    getPostComments(postId: bigint): Promise<Array<Comment>>;
+    deletePost(postId: bigint): Promise<void>;
+    // Reels
+    createReel(blobId: string, caption: string): Promise<bigint>;
+    getAllReels(): Promise<Array<Reel>>;
+    getReelsByUser(user: Principal): Promise<Array<Reel>>;
+    likeReel(reelId: bigint): Promise<void>;
+    unlikeReel(reelId: bigint): Promise<void>;
+    commentOnReel(reelId: bigint, text: string): Promise<bigint>;
+    getReelComments(reelId: bigint): Promise<Array<Comment>>;
+    deleteReel(reelId: bigint): Promise<void>;
+    // Stories
+    createStory(blobId: string): Promise<bigint>;
+    getActiveStories(): Promise<Array<Story>>;
+    deleteExpiredStories(): Promise<void>;
 }

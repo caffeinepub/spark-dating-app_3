@@ -1,6 +1,18 @@
 import type { Principal } from "@icp-sdk/core/principal";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Interest, Profile } from "../backend.d";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import type {
+  Comment,
+  Interest,
+  Post,
+  Profile,
+  Reel,
+  Story,
+} from "../backend.d";
 import { useActor } from "./useActor";
 
 // Shared stale times to reduce redundant backend calls
@@ -8,34 +20,35 @@ const STALE_MEDIUM = 60_000; // 1 min
 const STALE_SHORT = 15_000; // 15 sec
 
 export function useUserProfile(principal: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["profile", principal?.toString()],
     queryFn: async () => {
       if (!actor || !principal) return null;
       return actor.getUserProfile(principal);
     },
-    enabled: !!actor && !isFetching && !!principal,
+    enabled: !!actor && !!principal,
     staleTime: STALE_MEDIUM,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useMyProfile() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["myProfile"],
     queryFn: async () => {
       if (!actor) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (actor as any).getMyProfile() as Promise<Profile | null>;
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_MEDIUM,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useDiscoverProfiles() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["discoverProfiles"],
     queryFn: async (): Promise<{
@@ -44,8 +57,6 @@ export function useDiscoverProfiles() {
       following: Principal[];
     }> => {
       if (!actor) return { profiles: [], whoILiked: [], following: [] };
-      // Fetch all profiles + social data in parallel
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [allProfiles, whoILiked, following] = await Promise.all([
         (actor as any).getAllProfiles() as Promise<Profile[]>,
         actor.getWhoILiked().catch(() => [] as Principal[]),
@@ -53,13 +64,14 @@ export function useDiscoverProfiles() {
       ]);
       return { profiles: allProfiles, whoILiked, following };
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useMatches() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["matches"],
     queryFn: async () => {
@@ -78,13 +90,14 @@ export function useMatches() {
       );
       return profiles.filter((p): p is Profile => p !== null);
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useConversations() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["conversations"],
     queryFn: async () => {
@@ -100,101 +113,103 @@ export function useConversations() {
       );
       return withProfiles;
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useChat(otherUser: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["chat", otherUser?.toString()],
     queryFn: async () => {
       if (!actor || !otherUser) return [];
       return actor.getConversationsWithUser(otherUser);
     },
-    enabled: !!actor && !isFetching && !!otherUser,
+    enabled: !!actor && !!otherUser,
     refetchInterval: 5000,
     staleTime: 2000,
   });
 }
 
 export function useNotifications() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getNotifications();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     refetchInterval: 20000,
     staleTime: 10000,
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useUnreadCount() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["unreadCount"],
     queryFn: async () => {
       if (!actor) return 0n;
       return actor.getUnreadNotificationCount();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     refetchInterval: 20000,
     staleTime: 10000,
   });
 }
 
 export function useWhoILiked() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["whoILiked"],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getWhoILiked();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_SHORT,
   });
 }
 
 export function useFollowing() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["following"],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getFollowing();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_SHORT,
   });
 }
 
 export function useIsAdmin() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["isAdmin"],
     queryFn: async () => {
       if (!actor) return false;
       return actor.isCallerAdmin();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_MEDIUM,
   });
 }
 
 export function useUserCount() {
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   return useQuery({
     queryKey: ["userCount"],
     queryFn: async () => {
       if (!actor) return 0n;
       return actor.getUserCount();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor,
     staleTime: STALE_MEDIUM,
   });
 }
@@ -324,4 +339,242 @@ export function useFillSampleData() {
 
 export function useInterestParser() {
   return (interests: Interest[]): string[] => interests.map((i) => i.name);
+}
+
+// ── Feed queries ──────────────────────────────────────────────────────────────
+
+export function useAllPosts() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["allPosts"],
+    queryFn: async (): Promise<Post[]> => {
+      if (!actor) return [];
+      return (actor as any).getAllPosts() as Promise<Post[]>;
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAllReels() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["allReels"],
+    queryFn: async (): Promise<Reel[]> => {
+      if (!actor) return [];
+      return (actor as any).getAllReels() as Promise<Reel[]>;
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useActiveStories() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["activeStories"],
+    queryFn: async (): Promise<Story[]> => {
+      if (!actor) return [];
+      return (actor as any).getActiveStories() as Promise<Story[]>;
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePostsByUser(user: Principal | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["postsByUser", user?.toString()],
+    queryFn: async (): Promise<Post[]> => {
+      if (!actor || !user) return [];
+      return (actor as any).getPostsByUser(user) as Promise<Post[]>;
+    },
+    enabled: !!actor && !!user,
+    staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useReelsByUser(user: Principal | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["reelsByUser", user?.toString()],
+    queryFn: async (): Promise<Reel[]> => {
+      if (!actor || !user) return [];
+      return (actor as any).getReelsByUser(user) as Promise<Reel[]>;
+    },
+    enabled: !!actor && !!user,
+    staleTime: STALE_SHORT,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePostComments(postId: bigint | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["postComments", postId?.toString()],
+    queryFn: async (): Promise<Comment[]> => {
+      if (!actor || postId === null) return [];
+      return (actor as any).getPostComments(postId) as Promise<Comment[]>;
+    },
+    enabled: !!actor && postId !== null,
+    staleTime: 5000,
+  });
+}
+
+export function useReelComments(reelId: bigint | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["reelComments", reelId?.toString()],
+    queryFn: async (): Promise<Comment[]> => {
+      if (!actor || reelId === null) return [];
+      return (actor as any).getReelComments(reelId) as Promise<Comment[]>;
+    },
+    enabled: !!actor && reelId !== null,
+    staleTime: 5000,
+  });
+}
+
+export function useCreatePost() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      blobId,
+      caption,
+    }: { blobId: string; caption: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).createPost(blobId, caption) as Promise<bigint>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allPosts"] });
+      qc.invalidateQueries({ queryKey: ["postsByUser"] });
+    },
+  });
+}
+
+export function useCreateReel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      blobId,
+      caption,
+    }: { blobId: string; caption: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).createReel(blobId, caption) as Promise<bigint>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allReels"] });
+      qc.invalidateQueries({ queryKey: ["reelsByUser"] });
+    },
+  });
+}
+
+export function useCreateStory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ blobId }: { blobId: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).createStory(blobId) as Promise<bigint>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["activeStories"] });
+    },
+  });
+}
+
+export function useLikePost() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).likePost(postId) as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allPosts"] });
+    },
+  });
+}
+
+export function useUnlikePost() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).unlikePost(postId) as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allPosts"] });
+    },
+  });
+}
+
+export function useLikeReel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reelId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).likeReel(reelId) as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allReels"] });
+    },
+  });
+}
+
+export function useUnlikeReel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reelId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).unlikeReel(reelId) as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allReels"] });
+    },
+  });
+}
+
+export function useCommentOnPost() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ postId, text }: { postId: bigint; text: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).commentOnPost(postId, text) as Promise<bigint>;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["postComments", vars.postId.toString()],
+      });
+      qc.invalidateQueries({ queryKey: ["allPosts"] });
+    },
+  });
+}
+
+export function useCommentOnReel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reelId, text }: { reelId: bigint; text: string }) => {
+      if (!actor) throw new Error("Not connected");
+      return (actor as any).commentOnReel(reelId, text) as Promise<bigint>;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["reelComments", vars.reelId.toString()],
+      });
+      qc.invalidateQueries({ queryKey: ["allReels"] });
+    },
+  });
 }

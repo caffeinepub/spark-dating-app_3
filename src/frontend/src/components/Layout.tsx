@@ -11,6 +11,7 @@ import {
   Compass,
   Flame,
   Heart,
+  Home,
   LogOut,
   MessageCircle,
   Shield,
@@ -22,6 +23,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useUnreadCount } from "../hooks/useQueries";
 
 const navItems = [
+  { to: "/feed", icon: Home, label: "Feed", ocid: "nav.feed_link" },
   {
     to: "/discover",
     icon: Compass,
@@ -138,7 +140,7 @@ export default function Layout() {
   }, [actor]);
 
   const handleLogout = async () => {
-    if (actor) await actor.setOffline().catch(() => null);
+    if (actor) await (actor as any).setOffline().catch(() => null);
     clear();
     qc.clear();
     navigate({ to: "/" });
@@ -150,12 +152,14 @@ export default function Layout() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Desktop top nav */}
       <header className="hidden md:flex sticky top-0 z-50 glass border-b border-border h-16 items-center px-6 justify-between">
-        <Link to="/discover" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
-            <Flame className="w-4 h-4 text-white" />
-          </div>
+        <Link to="/feed" className="flex items-center gap-2">
+          <img
+            src="/assets/generated/nibba-nibbi-logo-transparent.png"
+            className="h-8 w-auto object-contain"
+            alt="Nibba Nibbi"
+          />
           <span className="font-display font-bold text-xl gradient-text">
-            Spark
+            Nibba Nibbi
           </span>
         </Link>
         <nav className="flex items-center gap-1">
@@ -178,6 +182,7 @@ export default function Layout() {
         </nav>
         <button
           type="button"
+          data-ocid="nav.logout.button"
           onClick={handleLogout}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-lg hover:bg-accent"
         >
@@ -203,6 +208,16 @@ export default function Layout() {
             unread={to === "/notifications" ? unread : undefined}
           />
         ))}
+        {/* Logout button */}
+        <button
+          type="button"
+          data-ocid="nav.mobile.logout.button"
+          onClick={handleLogout}
+          className="flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium text-rose-500 transition-all hover:text-rose-600"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
       </nav>
 
       {/* Footer (desktop only) */}

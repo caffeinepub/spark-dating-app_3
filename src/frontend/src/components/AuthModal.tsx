@@ -30,7 +30,7 @@ interface AuthModalProps {
 }
 
 const VALID_USERNAME_RE = /^[a-zA-Z0-9_]+$/;
-const EXAMPLE_USERNAMES = ["rahul_123", "priya2024", "spark_user"];
+const EXAMPLE_USERNAMES = ["rahul_123", "priya2024", "nibba_nibbi"];
 
 export default function AuthModal({
   open,
@@ -98,12 +98,12 @@ export default function AuthModal({
         suUsername.trim(),
         hash,
       );
-      if (result && "ok" in result) {
-        toast.success("Account created! Welcome to Spark 🎉");
+      if (result === "ok") {
+        toast.success("Account created! Welcome to Nibba Nibbi 🎉");
         onSuccess();
-      } else if (result && "usernameTaken" in result) {
+      } else if (result === "usernameTaken") {
         setSuError("That username is already taken. Try another!");
-      } else if (result && "alreadyRegistered" in result) {
+      } else if (result === "alreadyRegistered") {
         setSuError("You already have an account. Please sign in instead.");
       } else {
         setSuError("Unexpected response from server. Please try again.");
@@ -116,7 +116,7 @@ export default function AuthModal({
             ? e
             : "Unknown error";
       // Show a user-friendly message but also log for debugging
-      console.error("[Spark] registerWithCredentials error:", msg);
+      console.error("[Nibba Nibbi] registerWithCredentials error:", msg);
       if (
         msg.toLowerCase().includes("not registered") ||
         msg.toLowerCase().includes("unauthorized")
@@ -170,7 +170,7 @@ export default function AuthModal({
           : typeof e === "string"
             ? e
             : "Unknown error";
-      console.error("[Spark] loginWithCredentials error:", msg);
+      console.error("[Nibba Nibbi] loginWithCredentials error:", msg);
       setSiError(`Login failed: ${msg}`);
     } finally {
       setSiLoading(false);
@@ -193,7 +193,7 @@ export default function AuthModal({
           </div>
           <DialogHeader>
             <DialogTitle className="text-2xl font-display font-bold text-white">
-              Welcome to Spark
+              Welcome to Nibba Nibbi
             </DialogTitle>
           </DialogHeader>
           <p className="text-white/70 text-sm mt-1">
