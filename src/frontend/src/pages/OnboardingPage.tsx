@@ -23,13 +23,16 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Gender } from "../backend.d";
 import type { Profile } from "../backend.d";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useSaveProfile } from "../hooks/useQueries";
+import { hashPassword } from "../utils/crypto";
 
 const STEPS = [
   { id: 1, label: "Your Name" },
   { id: 2, label: "Photo" },
-  { id: 3, label: "About You" },
+  { id: 3, label: "Security" },
+  { id: 4, label: "About You" },
 ];
 
 const INTEREST_SUGGESTIONS = [
@@ -47,9 +50,18 @@ const INTEREST_SUGGESTIONS = [
   "Dancing",
 ];
 
+const SECURITY_QUESTIONS = [
+  "Aapki maa ka naam kya hai? (What is your mother's name?)",
+  "Aap kis school mein padhe? (Which school did you attend?)",
+  "Aapka pehla pet ka naam? (What was your first pet's name?)",
+  "Aapka janm shahar kya hai? (What is your birth city?)",
+];
+
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const { identity } = useInternetIdentity();
+  const { actor } = useActor();
+  const extActor = actor as any;
   const saveProfile = useSaveProfile();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -65,12 +77,15 @@ export default function OnboardingPage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Security Question state
+  const [securityQuestion, setSecurityQuestion] = useState("");
+  const [securityAnswer, setSecurityAnswer] = useState("");
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const previewUrl = URL.createObjectURL(file);
     setPhotoPreview(previewUrl);
-    // Convert to base64 for persistent storage
     const reader = new FileReader();
     reader.onload = () => {
       setPhotoLink(reader.result as string);
@@ -91,6 +106,7 @@ export default function OnboardingPage() {
 
   const canProceed = () => {
     if (step === 1) return displayName.trim().length >= 2;
+    // Step 3 (security): optional — allow skipping
     return true;
   };
 
@@ -117,7 +133,16 @@ export default function OnboardingPage() {
       principal: identity.getPrincipal(),
     } as unknown as Profile;
     saveProfile.mutate(profile, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Silently set security question if provided
+        if (securityQuestion && securityAnswer.trim() && extActor) {
+          try {
+            const ansHash = await hashPassword(securityAnswer.trim());
+            await extActor.setSecurityQuestion(securityQuestion, ansHash);
+          } catch {
+            // Silent fail — don't block onboarding
+          }
+        }
         toast.success("Profile saved! Time to find your match ✨");
         navigate({ to: "/discover" });
       },
@@ -159,7 +184,7 @@ export default function OnboardingPage() {
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`w-10 h-0.5 transition-all duration-300 ${
+                className={`w-8 h-0.5 transition-all duration-300 ${
                   step > s.id ? "gradient-primary" : "bg-border"
                 }`}
               />
@@ -178,12 +203,15 @@ export default function OnboardingPage() {
           <h1 className="font-display text-xl font-bold mt-0.5">
             {step === 1 && "What's your name?"}
             {step === 2 && "Add a profile photo"}
-            {step === 3 && "Tell us about yourself"}
+            {step === 3 && "Security Question"}
+            {step === 4 && "Tell us about yourself"}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {step === 1 && "This is how others will see you."}
             {step === 2 && "A photo helps you get more matches."}
-            {step === 3 && "Help us find the right people for you."}
+            {step === 3 &&
+              "Password bhulne par account recover karne mein madad karega."}
+            {step === 4 && "Help us find the right people for you."}
           </p>
         </div>
 
@@ -260,8 +288,56 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 3: Gender + Interests */}
+          {/* Step 3: Security Question */}
           {step === 3 && (
+            <div className="space-y-4">
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
+                <p className="text-xs text-primary font-medium">
+                  💡 Yeh optional hai
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Security question set karne se aap password bhulne par account
+                  recover kar sakte hain.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Security Question</Label>
+                <Select
+                  value={securityQuestion}
+                  onValueChange={setSecurityQuestion}
+                >
+                  <SelectTrigger data-ocid="onboarding.security.select">
+                    <SelectValue placeholder="Ek question chunein" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECURITY_QUESTIONS.map((q) => (
+                      <SelectItem key={q} value={q}>
+                        {q}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {securityQuestion && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="security-answer">Aapka Jawab</Label>
+                  <Input
+                    id="security-answer"
+                    data-ocid="onboarding.security.input"
+                    placeholder="Answer (case-sensitive)"
+                    value={securityAnswer}
+                    onChange={(e) => setSecurityAnswer(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Yeh jawab yaad rakhein — password reset mein kaam aayega.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Gender + Interests */}
+          {step === 4 && (
             <div className="space-y-5">
               <div className="space-y-1.5">
                 <Label>I am</Label>
@@ -378,7 +454,7 @@ export default function OnboardingPage() {
               onClick={() => setStep((s) => s + 1)}
               className="gradient-primary text-white border-0 shadow-glow gap-2"
             >
-              Next
+              {step === 3 && !securityQuestion ? "Skip" : "Next"}
               <ArrowRight className="w-4 h-4" />
             </Button>
           ) : (

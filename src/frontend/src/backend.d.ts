@@ -77,6 +77,10 @@ export interface Interest {
     id: bigint;
     name: string;
 }
+export interface PasswordResetRequestInfo {
+    username: string;
+    requestTime: bigint;
+}
 export enum FollowRequestStatus {
     pending = "pending",
     accepted = "accepted",
@@ -99,6 +103,7 @@ export enum Variant_ok_alreadyRegistered_usernameTaken {
 }
 export interface backendInterface {
     acceptFollowRequest(requester: Principal): Promise<void>;
+    adminResetPassword(username: string, newPasswordHash: string): Promise<boolean>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     commentOnPost(postId: bigint, text: string): Promise<bigint>;
     commentOnReel(reelId: bigint, text: string): Promise<bigint>;
@@ -128,10 +133,12 @@ export interface backendInterface {
     getMyUsername(): Promise<string | null>;
     getNotifications(): Promise<Array<Notification>>;
     getPendingFollowRequests(): Promise<Array<Principal>>;
+    getPendingPasswordResetRequests(): Promise<Array<PasswordResetRequestInfo>>;
     getPostComments(postId: bigint): Promise<Array<Comment>>;
     getPostsByUser(user: Principal): Promise<Array<Post>>;
     getReelComments(reelId: bigint): Promise<Array<Comment>>;
     getReelsByUser(user: Principal): Promise<Array<Reel>>;
+    getSecurityQuestion(username: string): Promise<string | null>;
     getUnreadNotificationCount(): Promise<bigint>;
     getUserCount(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<Profile>;
@@ -149,14 +156,18 @@ export interface backendInterface {
     loginWithCredentials(username: string, passwordHash: string): Promise<boolean>;
     markNotificationAsRead(_timestamp: bigint): Promise<void>;
     registerWithCredentials(username: string, passwordHash: string): Promise<Variant_ok_alreadyRegistered_usernameTaken>;
+    requestAdminPasswordReset(username: string): Promise<void>;
+    resetPasswordWithOtp(username: string, otp: string, newPasswordHash: string): Promise<boolean>;
     saveCallerUserProfile(profile: Profile): Promise<void>;
     saveCallerUserProfileInfo(profileInfo: InterestDisplayPrefs): Promise<void>;
     sendFollowRequest(targetUser: Principal): Promise<void>;
     sendMessage(recipient: Principal, content: string): Promise<void>;
     setOffline(): Promise<void>;
     setOnline(): Promise<void>;
+    setSecurityQuestion(question: string, answerHash: string): Promise<void>;
     unfollowUser(unfollowedUserId: Principal): Promise<void>;
     unlikePost(postId: bigint): Promise<void>;
     unlikeReel(reelId: bigint): Promise<void>;
     unlikeUser(_unlikedUserId: Principal): Promise<void>;
+    verifySecurityAnswer(username: string, answerHash: string): Promise<string | null>;
 }

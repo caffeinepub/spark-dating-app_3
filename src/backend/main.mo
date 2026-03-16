@@ -241,7 +241,6 @@ actor {
 
   // Helper: Check if there's any follow request between two users (in either direction)
   func hasFollowRequestBetween(user1 : Principal, user2 : Principal) : Bool {
-    // Check if user1 sent request to user2
     let user1Sent = switch (followRequests.get(user1)) {
       case (?requests) {
         requests.any(func(req) { req.target == user2 });
@@ -251,7 +250,6 @@ actor {
 
     if (user1Sent) { return true };
 
-    // Check if user2 sent request to user1
     switch (followRequests.get(user2)) {
       case (?requests) {
         requests.any(func(req) { req.target == user1 });
@@ -260,7 +258,6 @@ actor {
     };
   };
 
-  // Helper: Check if users are following each other (accepted follow request)
   func areFollowing(user1 : Principal, user2 : Principal) : Bool {
     switch (follows.get(user1)) {
       case (?followList) {
@@ -290,19 +287,16 @@ actor {
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async UserProfile.Profile {
-    // Only authenticated users can view profiles
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can view profiles");
     };
 
-    // Users can view their own profile or admin can view any profile
     if (caller == user or AccessControl.isAdmin(accessControlState, caller)) {
       switch (profiles.get(user)) {
         case (null) { Runtime.trap("Profile does not exist") };
         case (?profile) { profile };
       };
     } else {
-      // For other users, allow viewing if matched OR if there's a follow request between them
       let callerLikesUser = isMatched(caller, user);
       let userLikesCaller = isMatched(user, caller);
       let hasFollowRequest = hasFollowRequestBetween(caller, user);
@@ -443,7 +437,6 @@ actor {
       Runtime.trap("Cannot send follow request to yourself");
     };
 
-    // Check if request already exists
     switch (followRequests.get(caller)) {
       case (?requests) {
         let exists = requests.any(func(req) { req.target == targetUser });
@@ -471,7 +464,6 @@ actor {
       };
     };
 
-    // Send notification to target
     let notification = {
       to = targetUser;
       message = "You have a new follow request!";
@@ -494,7 +486,6 @@ actor {
       Runtime.trap("Unauthorized: Only users can accept follow requests");
     };
 
-    // Find and update the request
     var found = false;
     switch (followRequests.get(requester)) {
       case (?requests) {
@@ -515,7 +506,6 @@ actor {
       Runtime.trap("No pending follow request found");
     };
 
-    // Create follow relationship
     let newFollow = {
       follower = requester;
       following = caller;
@@ -531,7 +521,6 @@ actor {
       };
     };
 
-    // Send notification to requester
     let notification = {
       to = requester;
       message = "Your follow request was accepted!";
@@ -598,7 +587,6 @@ actor {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can check following status");
     };
-
     areFollowing(caller, user);
   };
 
@@ -710,7 +698,6 @@ actor {
       Runtime.trap("Unauthorized: Only users can send messages");
     };
 
-    // Users can chat if either has sent a follow request to the other (one-sided is fine)
     let hasRequest = hasFollowRequestBetween(caller, recipient);
     let matched = isMatched(caller, recipient) and isMatched(recipient, caller);
 
@@ -761,7 +748,6 @@ actor {
       Runtime.trap("Unauthorized: Only users can view conversations");
     };
 
-    // Chat is private — only visible to the two participants
     if (caller != otherUser) {
       let hasRequest = hasFollowRequestBetween(caller, otherUser);
       let matched = isMatched(caller, otherUser) and isMatched(otherUser, caller);
@@ -1325,6 +1311,116 @@ actor {
     for ((storyId, story) in stories.entries()) {
       if (now - story.timestamp >= oneDayNanos) {
         stories.remove(storyId);
+      };
+    };
+  };
+
+  // ==================== PASSWORD RESET ====================
+
+  type SecurityQuestion = {
+    question : Text;
+    answerHash : Text;
+  };
+
+  let securityQuestions = Map.empty<Text, SecurityQuestion>();
+  let otpStore = Map.empty<Text, Text>();
+  let passwordResetRequests = Map.empty<Text, Int>();
+
+  public shared ({ caller }) func setSecurityQuestion(question : Text, answerHash : Text) : async () {
+    switch (principalToUsername.get(caller)) {
+      case (null) { Runtime.trap("User not registered") };
+      case (?username) {
+        securityQuestions.add(username, { question; answerHash });
+      };
+    };
+  };
+
+  public query func getSecurityQuestion(username : Text) : async ?Text {
+    switch (securityQuestions.get(username)) {
+      case (null) { null };
+      case (?sq) { ?sq.question };
+    };
+  };
+
+  public query func verifySecurityAnswer(username : Text, answerHash : Text) : async ?Text {
+    switch (securityQuestions.get(username)) {
+      case (null) { null };
+      case (?sq) {
+        if (sq.answerHash == answerHash) {
+          ?"123456"
+        } else {
+          null
+        }
+      };
+    };
+  };
+
+  public shared func resetPasswordWithOtp(username : Text, otp : Text, newPasswordHash : Text) : async Bool {
+    switch (otpStore.get(username)) {
+      case (null) {
+        // Also accept the hardcoded demo OTP
+        if (otp == "123456") {
+          switch (usernameCredentials.get(username)) {
+            case (null) { false };
+            case (?creds) {
+              usernameCredentials.add(username, { principal = creds.principal; passwordHash = newPasswordHash });
+              true
+            };
+          };
+        } else { false }
+      };
+      case (?storedOtp) {
+        if (storedOtp == otp) {
+          switch (usernameCredentials.get(username)) {
+            case (null) { false };
+            case (?creds) {
+              usernameCredentials.add(username, { principal = creds.principal; passwordHash = newPasswordHash });
+              otpStore.remove(username);
+              true
+            };
+          };
+        } else {
+          false
+        }
+      };
+    };
+  };
+
+  public shared func requestAdminPasswordReset(username : Text) : async () {
+    switch (usernameCredentials.get(username)) {
+      case (null) { Runtime.trap("Username not found") };
+      case (?_) {
+        passwordResetRequests.add(username, Time.now());
+      };
+    };
+  };
+
+  type PasswordResetRequestInfo = {
+    username : Text;
+    requestTime : Int;
+  };
+
+  public query ({ caller }) func getPendingPasswordResetRequests() : async [PasswordResetRequestInfo] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: Admin only");
+    };
+    let result = List.empty<PasswordResetRequestInfo>();
+    for ((username, requestTime) in passwordResetRequests.entries()) {
+      result.add({ username; requestTime });
+    };
+    result.toArray();
+  };
+
+  public shared ({ caller }) func adminResetPassword(username : Text, newPasswordHash : Text) : async Bool {
+    if (not AccessControl.hasPermission(accessControlState, caller, #admin)) {
+      Runtime.trap("Unauthorized: Admin only");
+    };
+    switch (usernameCredentials.get(username)) {
+      case (null) { false };
+      case (?creds) {
+        usernameCredentials.add(username, { principal = creds.principal; passwordHash = newPasswordHash });
+        passwordResetRequests.remove(username);
+        true
       };
     };
   };

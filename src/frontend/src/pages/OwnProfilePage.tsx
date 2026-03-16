@@ -2,6 +2,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,10 +22,13 @@ import {
   Edit3,
   Film,
   Grid3X3,
+  Link,
   Lock,
   LogOut,
+  MoreHorizontal,
   Plus,
   Save,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -154,6 +163,164 @@ function FollowUserRow({
   );
 }
 
+// ── Three-dot menu for a post tile ──
+function PostTileMenu({
+  post,
+  onDelete,
+}: {
+  post: Post;
+  onDelete: (id: bigint) => void;
+}) {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/post/${post.id.toString()}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: post.caption || "Post", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied!");
+      }
+    } catch {
+      await navigator.clipboard.writeText(url).catch(() => null);
+      toast.success("Link copied!");
+    }
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toast.success("Post saved!");
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(post.id);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        asChild
+        onClick={(e) => e.stopPropagation()}
+        data-ocid={"profile.post.dropdown_menu"}
+      >
+        <button
+          type="button"
+          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 z-10"
+          aria-label="Post options"
+        >
+          <MoreHorizontal className="w-3.5 h-3.5 text-white" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuItem
+          data-ocid="profile.post.delete_button"
+          onClick={handleDelete}
+          className="text-rose-500 focus:text-rose-500 gap-2"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-ocid="profile.post.save_button"
+          onClick={handleSave}
+          className="gap-2"
+        >
+          <Save className="w-3.5 h-3.5" />
+          Save
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-ocid="profile.post.secondary_button"
+          onClick={handleShare}
+          className="gap-2"
+        >
+          <Link className="w-3.5 h-3.5" />
+          Share
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ── Three-dot menu for a reel tile ──
+function ReelTileMenu({
+  reel,
+  onDelete,
+}: {
+  reel: Reel;
+  onDelete: (id: bigint) => void;
+}) {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/reel/${reel.id.toString()}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: reel.caption || "Reel", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied!");
+      }
+    } catch {
+      await navigator.clipboard.writeText(url).catch(() => null);
+      toast.success("Link copied!");
+    }
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toast.success("Reel saved!");
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(reel.id);
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        asChild
+        onClick={(e) => e.stopPropagation()}
+        data-ocid={"profile.reel.dropdown_menu"}
+      >
+        <button
+          type="button"
+          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 z-10"
+          aria-label="Reel options"
+        >
+          <MoreHorizontal className="w-3.5 h-3.5 text-white" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuItem
+          data-ocid="profile.reel.delete_button"
+          onClick={handleDelete}
+          className="text-rose-500 focus:text-rose-500 gap-2"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Delete
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-ocid="profile.reel.save_button"
+          onClick={handleSave}
+          className="gap-2"
+        >
+          <Save className="w-3.5 h-3.5" />
+          Save
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-ocid="profile.reel.secondary_button"
+          onClick={handleShare}
+          className="gap-2"
+        >
+          <Link className="w-3.5 h-3.5" />
+          Share
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function OwnProfilePage() {
   const { identity, clear } = useInternetIdentity();
   const { actor } = useActor();
@@ -267,6 +434,28 @@ export default function OwnProfilePage() {
     clear();
     qc.clear();
     navigate({ to: "/" });
+  };
+
+  const handleDeletePost = async (postId: bigint) => {
+    if (!actor) return;
+    try {
+      await (actor as any).deletePost(postId);
+      toast.success("Post deleted.");
+      qc.invalidateQueries({ queryKey: ["postsByUser"] });
+    } catch {
+      toast.error("Failed to delete post.");
+    }
+  };
+
+  const handleDeleteReel = async (reelId: bigint) => {
+    if (!actor) return;
+    try {
+      await (actor as any).deleteReel(reelId);
+      toast.success("Reel deleted.");
+      qc.invalidateQueries({ queryKey: ["reelsByUser"] });
+    } catch {
+      toast.error("Failed to delete reel.");
+    }
   };
 
   const profileBio = (myProfile as any)?.bio ?? "";
@@ -516,21 +705,26 @@ export default function OwnProfilePage() {
                 ) : (
                   <div className="grid grid-cols-3 gap-0.5">
                     {myPosts.map((post, i) => (
-                      <button
+                      <div
                         key={post.id.toString()}
-                        type="button"
-                        data-ocid={`profile.post.item.${i + 1}`}
-                        onClick={() =>
-                          setDetailMedia({ type: "post", data: post })
-                        }
-                        className="aspect-square overflow-hidden hover:opacity-90 transition-opacity"
+                        className="relative group aspect-square overflow-hidden"
                       >
-                        <img
-                          src={post.blobId}
-                          alt={post.caption}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
+                        <button
+                          type="button"
+                          data-ocid={`profile.post.item.${i + 1}`}
+                          onClick={() =>
+                            setDetailMedia({ type: "post", data: post })
+                          }
+                          className="w-full h-full hover:opacity-80 transition-opacity"
+                        >
+                          <img
+                            src={post.blobId}
+                            alt={post.caption}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                        <PostTileMenu post={post} onDelete={handleDeletePost} />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -563,25 +757,30 @@ export default function OwnProfilePage() {
                 ) : (
                   <div className="grid grid-cols-3 gap-0.5">
                     {myReels.map((reel, i) => (
-                      <button
+                      <div
                         key={reel.id.toString()}
-                        type="button"
-                        data-ocid={`profile.reel.item.${i + 1}`}
-                        onClick={() =>
-                          setDetailMedia({ type: "reel", data: reel })
-                        }
-                        className="aspect-square overflow-hidden relative hover:opacity-90 transition-opacity bg-black"
+                        className="relative group aspect-square overflow-hidden bg-black"
                       >
-                        <video
-                          src={reel.blobId}
-                          className="w-full h-full object-cover"
+                        <button
+                          type="button"
+                          data-ocid={`profile.reel.item.${i + 1}`}
+                          onClick={() =>
+                            setDetailMedia({ type: "reel", data: reel })
+                          }
+                          className="w-full h-full hover:opacity-80 transition-opacity"
                         >
-                          <track kind="captions" />
-                        </video>
-                        <div className="absolute bottom-1 right-1">
-                          <Film className="w-3.5 h-3.5 text-white drop-shadow" />
-                        </div>
-                      </button>
+                          <video
+                            src={reel.blobId}
+                            className="w-full h-full object-cover"
+                          >
+                            <track kind="captions" />
+                          </video>
+                          <div className="absolute bottom-1 right-1 pointer-events-none">
+                            <Film className="w-3.5 h-3.5 text-white drop-shadow" />
+                          </div>
+                        </button>
+                        <ReelTileMenu reel={reel} onDelete={handleDeleteReel} />
+                      </div>
                     ))}
                   </div>
                 )}

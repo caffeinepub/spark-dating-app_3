@@ -1,6 +1,13 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Principal } from "@icp-sdk/core/principal";
@@ -13,6 +20,8 @@ import {
   MoreHorizontal,
   Plus,
   Send,
+  Share2,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +35,9 @@ import {
   useAllReels,
   useCommentOnPost,
   useCommentOnReel,
+  useDeletePost,
+  useDeleteReel,
+  useDeleteStory,
   useLikePost,
   useLikeReel,
   usePostComments,
@@ -35,7 +47,7 @@ import {
   useUserProfile,
 } from "../hooks/useQueries";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types ───────────────────────────────────────────────────────────────────────────────
 
 type FeedItem = { type: "post"; data: Post } | { type: "reel"; data: Reel };
 
@@ -44,7 +56,68 @@ type DetailItem =
   | { type: "reel"; data: Reel }
   | null;
 
-// ── Story ring ───────────────────────────────────────────────────────────────
+// ── Content Options Menu (three dots) ─────────────────────────────────────────────
+
+function ContentOptionsMenu({
+  isAuthor,
+  onDelete,
+  onSave,
+  onShare,
+  ocidPrefix,
+}: {
+  isAuthor: boolean;
+  onDelete?: () => void;
+  onSave: () => void;
+  onShare: () => void;
+  ocidPrefix: string;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-ocid={`${ocidPrefix}.open_modal_button`}
+          className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-accent transition-colors"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuItem
+          data-ocid={`${ocidPrefix}.share_button`}
+          onClick={onShare}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <Share2 className="w-4 h-4" />
+          Share
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-ocid={`${ocidPrefix}.save_button`}
+          onClick={onSave}
+          className="flex items-center gap-2 cursor-pointer"
+        >
+          <Bookmark className="w-4 h-4" />
+          Save
+        </DropdownMenuItem>
+        {isAuthor && onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-ocid={`${ocidPrefix}.delete_button`}
+              onClick={onDelete}
+              className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ── Story ring ───────────────────────────────────────────────────────────────────
 
 function StoryCircle({
   story,
@@ -97,19 +170,25 @@ function AddStoryCircle({ onClick }: { onClick: () => void }) {
   );
 }
 
-// ── Story Viewer ──────────────────────────────────────────────────────────────
+// ── Story Viewer ─────────────────────────────────────────────────────────────────
 
 function StoryViewer({
   story,
   onClose,
+  myPrincipal,
 }: {
   story: Story;
   onClose: () => void;
+  myPrincipal?: Principal;
 }) {
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { data: profile } = useUserProfile(story.author);
+  const deleteStory = useDeleteStory();
   const isVideo = story.blobId.startsWith("data:video");
+  const isAuthor = myPrincipal
+    ? story.author.toString() === myPrincipal.toString()
+    : false;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: story.id is used as a reset trigger
   useEffect(() => {
@@ -126,6 +205,33 @@ function StoryViewer({
     }, 50);
     return () => clearInterval(intervalRef.current!);
   }, [story.id, onClose]);
+
+  const handleDelete = async () => {
+    try {
+      await deleteStory.mutateAsync(story.id);
+      toast.success("Story delete ho gayi");
+      onClose();
+    } catch {
+      toast.error("Story delete nahi ho saki");
+    }
+  };
+
+  const handleSave = () => {
+    const link = document.createElement("a");
+    link.href = story.blobId;
+    link.download = `story-${story.id}.${isVideo ? "mp4" : "jpg"}`;
+    link.click();
+    toast.success("Story save ho gayi");
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: "Story", url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copy ho gaya");
+    }
+  };
 
   return (
     <div
@@ -164,6 +270,56 @@ function StoryViewer({
         </span>
       </div>
 
+      {/* Three-dot menu for story */}
+      <div
+        className="absolute top-7 right-4"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-ocid="feed.story.options.open_modal_button"
+              className="text-white/80 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem
+              data-ocid="feed.story.options.share_button"
+              onClick={handleShare}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-ocid="feed.story.options.save_button"
+              onClick={handleSave}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Bookmark className="w-4 h-4" />
+              Save
+            </DropdownMenuItem>
+            {isAuthor && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-ocid="feed.story.options.delete_button"
+                  onClick={handleDelete}
+                  className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* Close */}
       <button
         type="button"
@@ -172,7 +328,7 @@ function StoryViewer({
           e.stopPropagation();
           onClose();
         }}
-        className="absolute top-8 right-4 text-white/80 hover:text-white"
+        className="absolute top-8 right-12 text-white/80 hover:text-white"
       >
         <X className="w-6 h-6" />
       </button>
@@ -210,7 +366,7 @@ function StoryViewer({
   );
 }
 
-// ── Author line helper ────────────────────────────────────────────────────────
+// ── Author line helper ─────────────────────────────────────────────────────────────────
 
 function AuthorLine({ principal }: { principal: Principal }) {
   const { data: profile } = useUserProfile(principal);
@@ -232,7 +388,7 @@ function AuthorLine({ principal }: { principal: Principal }) {
   );
 }
 
-// ── Post Card ─────────────────────────────────────────────────────────────────
+// ── Post Card ─────────────────────────────────────────────────────────────────────────────
 
 function PostCard({
   post,
@@ -250,7 +406,11 @@ function PostCard({
     : false;
   const likePost = useLikePost();
   const unlikePost = useUnlikePost();
+  const deletePost = useDeletePost();
   const [likeAnim, setLikeAnim] = useState(false);
+  const isAuthor = myPrincipal
+    ? post.author.toString() === myPrincipal.toString()
+    : false;
 
   const handleLike = () => {
     setLikeAnim(true);
@@ -262,6 +422,35 @@ function PostCard({
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      await deletePost.mutateAsync(post.id);
+      toast.success("Post delete ho gayi");
+    } catch {
+      toast.error("Post delete nahi ho saki");
+    }
+  };
+
+  const handleSave = () => {
+    const link = document.createElement("a");
+    link.href = post.blobId;
+    link.download = `post-${post.id}.jpg`;
+    link.click();
+    toast.success("Post save ho gayi");
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: post.caption || "Post",
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copy ho gaya");
+    }
+  };
+
   return (
     <article
       data-ocid={`feed.post.item.${index}`}
@@ -270,12 +459,13 @@ function PostCard({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <AuthorLine principal={post.author} />
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground p-1"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        <ContentOptionsMenu
+          isAuthor={isAuthor}
+          onDelete={handleDelete}
+          onSave={handleSave}
+          onShare={handleShare}
+          ocidPrefix={`feed.post.options.${index}`}
+        />
       </div>
 
       {/* Image */}
@@ -321,12 +511,14 @@ function PostCard({
         </button>
         <button
           type="button"
+          onClick={handleShare}
           className="text-muted-foreground hover:text-foreground"
         >
           <Send className="w-6 h-6" />
         </button>
         <button
           type="button"
+          onClick={handleSave}
           className="ml-auto text-muted-foreground hover:text-foreground"
         >
           <Bookmark className="w-6 h-6" />
@@ -363,7 +555,7 @@ function PostCard({
   );
 }
 
-// ── Reel Card ─────────────────────────────────────────────────────────────────
+// ── Reel Card ────────────────────────────────────────────────────────────────────────────
 
 function ReelCard({
   reel,
@@ -381,13 +573,46 @@ function ReelCard({
     : false;
   const likeReel = useLikeReel();
   const unlikeReel = useUnlikeReel();
+  const deleteReel = useDeleteReel();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isAuthor = myPrincipal
+    ? reel.author.toString() === myPrincipal.toString()
+    : false;
 
   const handleLike = () => {
     if (isLiked) {
       unlikeReel.mutate(reel.id);
     } else {
       likeReel.mutate(reel.id);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteReel.mutateAsync(reel.id);
+      toast.success("Reel delete ho gayi");
+    } catch {
+      toast.error("Reel delete nahi ho saki");
+    }
+  };
+
+  const handleSave = () => {
+    const link = document.createElement("a");
+    link.href = reel.blobId;
+    link.download = `reel-${reel.id}.mp4`;
+    link.click();
+    toast.success("Reel save ho gayi");
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: reel.caption || "Reel",
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copy ho gaya");
     }
   };
 
@@ -404,12 +629,13 @@ function ReelCard({
             <Film className="w-3.5 h-3.5" />
             Reel
           </span>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground p-1"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          <ContentOptionsMenu
+            isAuthor={isAuthor}
+            onDelete={handleDelete}
+            onSave={handleSave}
+            onShare={handleShare}
+            ocidPrefix={`feed.reel.options.${index}`}
+          />
         </div>
       </div>
 
@@ -465,12 +691,14 @@ function ReelCard({
         </button>
         <button
           type="button"
+          onClick={handleShare}
           className="text-muted-foreground hover:text-foreground"
         >
           <Send className="w-6 h-6" />
         </button>
         <button
           type="button"
+          onClick={handleSave}
           className="ml-auto text-muted-foreground hover:text-foreground"
         >
           <Bookmark className="w-6 h-6" />
@@ -506,7 +734,7 @@ function ReelCard({
   );
 }
 
-// ── Detail / Comments dialog ──────────────────────────────────────────────────
+// ── Detail / Comments dialog ──────────────────────────────────────────────────────────
 
 function DetailDialog({
   item,
@@ -698,6 +926,14 @@ function DetailDialog({
               <button
                 type="button"
                 className="text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({ url: window.location.href });
+                  } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    toast.success("Link copy ho gaya");
+                  }
+                }}
               >
                 <Send className="w-6 h-6" />
               </button>
@@ -737,7 +973,7 @@ function DetailDialog({
   );
 }
 
-// ── Main Feed Page ─────────────────────────────────────────────────────────────
+// ── Main Feed Page ───────────────────────────────────────────────────────────────────────
 
 export default function FeedPage() {
   const { identity } = useInternetIdentity();
@@ -777,6 +1013,7 @@ export default function FeedPage() {
         <StoryViewer
           story={viewingStory}
           onClose={() => setViewingStory(null)}
+          myPrincipal={myPrincipal}
         />
       )}
 

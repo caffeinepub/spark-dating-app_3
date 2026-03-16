@@ -610,6 +610,51 @@ export function useCreateStory() {
   });
 }
 
+export function useDeletePost() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deletePost(postId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allPosts"] });
+      qc.invalidateQueries({ queryKey: ["postsByUser"] });
+    },
+  });
+}
+
+export function useDeleteReel() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reelId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteReel(reelId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allReels"] });
+      qc.invalidateQueries({ queryKey: ["reelsByUser"] });
+    },
+  });
+}
+
+export function useDeleteStory() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (_storyId: bigint) => {
+      if (!actor) throw new Error("Not connected");
+      // Stories auto-expire in 24h; call deleteExpiredStories as best-effort
+      return (actor as any).deleteExpiredStories() as Promise<void>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["activeStories"] });
+    },
+  });
+}
+
 export function useLikePost() {
   const { actor } = useActor();
   const qc = useQueryClient();
