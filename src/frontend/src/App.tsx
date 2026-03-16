@@ -65,8 +65,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       setStage("no-identity");
       return;
     }
-    if (isFetching || !actor) {
-      setStage("loading");
+    // Only show loading if there's no actor yet (first time)
+    // Do NOT re-enter loading if actor exists (prevents infinite loop)
+    if (!actor) {
+      if (!isFetching) {
+        // Actor not fetching and not available - something went wrong
+        setStage("loading");
+      }
       return;
     }
 

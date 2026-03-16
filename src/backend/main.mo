@@ -13,8 +13,6 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
 
-
-
 actor {
   // State
   let accessControlState = AccessControl.initState();
@@ -63,6 +61,19 @@ actor {
   type Like = {
     from : Principal;
     to : Principal;
+    timestamp : Int;
+  };
+
+  type FollowRequestStatus = {
+    #pending;
+    #accepted;
+    #declined;
+  };
+
+  type FollowRequest = {
+    requester : Principal;
+    target : Principal;
+    status : FollowRequestStatus;
     timestamp : Int;
   };
 
@@ -163,6 +174,7 @@ actor {
 
   let profiles = Map.empty<Principal, UserProfile.Profile>();
   let likes = Map.empty<Principal, List.List<Like>>();
+  let followRequests = Map.empty<Principal, List.List<FollowRequest>>();
   let follows = Map.empty<Principal, List.List<Follow>>();
   let notifications = Map.empty<Principal, List.List<Notification>>();
   let messages = Map.empty<Principal, List.List<Message>>();
@@ -227,6 +239,37 @@ actor {
     };
   };
 
+  // Helper: Check if there's any follow request between two users (in either direction)
+  func hasFollowRequestBetween(user1 : Principal, user2 : Principal) : Bool {
+    // Check if user1 sent request to user2
+    let user1Sent = switch (followRequests.get(user1)) {
+      case (?requests) {
+        requests.any(func(req) { req.target == user2 });
+      };
+      case (null) { false };
+    };
+
+    if (user1Sent) { return true };
+
+    // Check if user2 sent request to user1
+    switch (followRequests.get(user2)) {
+      case (?requests) {
+        requests.any(func(req) { req.target == user1 });
+      };
+      case (null) { false };
+    };
+  };
+
+  // Helper: Check if users are following each other (accepted follow request)
+  func areFollowing(user1 : Principal, user2 : Principal) : Bool {
+    switch (follows.get(user1)) {
+      case (?followList) {
+        followList.any(func(f) { f.following == user2 });
+      };
+      case (null) { false };
+    };
+  };
+
   func messagesForPair(user1 : Principal, user2 : Principal) : [Message] {
     let pairMessages = switch (messages.get(user1)) {
       case (?user1Messages) {
@@ -247,20 +290,31 @@ actor {
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async UserProfile.Profile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-        Runtime.trap("Unauthorized: Only users can view profiles");
-      };
-      let callerLikesUser = isMatched(caller, user);
-      let userLikesCaller = isMatched(user, caller);
-      if (not (callerLikesUser and userLikesCaller)) {
-        Runtime.trap("Unauthorized: Can only view profiles of matched users");
-      };
+    // Only authenticated users can view profiles
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view profiles");
     };
 
-    switch (profiles.get(user)) {
-      case (null) { Runtime.trap("Profile does not exist") };
-      case (?profile) { profile };
+    // Users can view their own profile or admin can view any profile
+    if (caller == user or AccessControl.isAdmin(accessControlState, caller)) {
+      switch (profiles.get(user)) {
+        case (null) { Runtime.trap("Profile does not exist") };
+        case (?profile) { profile };
+      };
+    } else {
+      // For other users, allow viewing if matched OR if there's a follow request between them
+      let callerLikesUser = isMatched(caller, user);
+      let userLikesCaller = isMatched(user, caller);
+      let hasFollowRequest = hasFollowRequestBetween(caller, user);
+
+      if ((callerLikesUser and userLikesCaller) or hasFollowRequest) {
+        switch (profiles.get(user)) {
+          case (null) { Runtime.trap("Profile does not exist") };
+          case (?profile) { profile };
+        };
+      } else {
+        Runtime.trap("Unauthorized: Can only view profiles of matched users or users with follow requests");
+      };
     };
   };
 
@@ -378,6 +432,192 @@ actor {
     };
   };
 
+  // ==================== FOLLOW REQUEST SYSTEM ====================
+
+  public shared ({ caller }) func sendFollowRequest(targetUser : Principal) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can send follow requests");
+    };
+
+    if (caller == targetUser) {
+      Runtime.trap("Cannot send follow request to yourself");
+    };
+
+    // Check if request already exists
+    switch (followRequests.get(caller)) {
+      case (?requests) {
+        let exists = requests.any(func(req) { req.target == targetUser });
+        if (exists) {
+          Runtime.trap("Follow request already sent");
+        };
+      };
+      case (null) { };
+    };
+
+    let newRequest : FollowRequest = {
+      requester = caller;
+      target = targetUser;
+      status = #pending;
+      timestamp = Time.now();
+    };
+
+    switch (followRequests.get(caller)) {
+      case (null) {
+        followRequests.add(caller, List.fromArray<FollowRequest>([newRequest]));
+      };
+      case (?existing) {
+        existing.add(newRequest);
+        followRequests.add(caller, existing);
+      };
+    };
+
+    // Send notification to target
+    let notification = {
+      to = targetUser;
+      message = "You have a new follow request!";
+      timestamp = Time.now();
+      isRead = false;
+    };
+    switch (notifications.get(targetUser)) {
+      case (null) {
+        notifications.add(targetUser, List.fromArray<Notification>([notification]));
+      };
+      case (?existing) {
+        existing.add(notification);
+        notifications.add(targetUser, existing);
+      };
+    };
+  };
+
+  public shared ({ caller }) func acceptFollowRequest(requester : Principal) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can accept follow requests");
+    };
+
+    // Find and update the request
+    var found = false;
+    switch (followRequests.get(requester)) {
+      case (?requests) {
+        let updated = requests.map<FollowRequest, FollowRequest>(func(req) {
+          if (req.target == caller and req.status == #pending) {
+            found := true;
+            { req with status = #accepted };
+          } else {
+            req;
+          };
+        });
+        followRequests.add(requester, updated);
+      };
+      case (null) { };
+    };
+
+    if (not found) {
+      Runtime.trap("No pending follow request found");
+    };
+
+    // Create follow relationship
+    let newFollow = {
+      follower = requester;
+      following = caller;
+      timestamp = Time.now();
+    };
+    switch (follows.get(requester)) {
+      case (null) {
+        follows.add(requester, List.fromArray<Follow>([newFollow]));
+      };
+      case (?existing) {
+        existing.add(newFollow);
+        follows.add(requester, existing);
+      };
+    };
+
+    // Send notification to requester
+    let notification = {
+      to = requester;
+      message = "Your follow request was accepted!";
+      timestamp = Time.now();
+      isRead = false;
+    };
+    switch (notifications.get(requester)) {
+      case (null) {
+        notifications.add(requester, List.fromArray<Notification>([notification]));
+      };
+      case (?existing) {
+        existing.add(notification);
+        notifications.add(requester, existing);
+      };
+    };
+  };
+
+  public shared ({ caller }) func declineFollowRequest(requester : Principal) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can decline follow requests");
+    };
+
+    var found = false;
+    switch (followRequests.get(requester)) {
+      case (?requests) {
+        let updated = requests.map<FollowRequest, FollowRequest>(func(req) {
+          if (req.target == caller and req.status == #pending) {
+            found := true;
+            { req with status = #declined };
+          } else {
+            req;
+          };
+        });
+        followRequests.add(requester, updated);
+      };
+      case (null) { };
+    };
+
+    if (not found) {
+      Runtime.trap("No pending follow request found");
+    };
+  };
+
+  public query ({ caller }) func getFollowRequestStatus(targetUser : Principal) : async ?FollowRequestStatus {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can check follow request status");
+    };
+
+    switch (followRequests.get(caller)) {
+      case (?requests) {
+        let filtered = requests.filter(func(req) { req.target == targetUser });
+        let arr = filtered.toArray();
+        if (arr.size() > 0) {
+          ?arr[0].status;
+        } else {
+          null;
+        };
+      };
+      case (null) { null };
+    };
+  };
+
+  public query ({ caller }) func isFollowing(user : Principal) : async Bool {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can check following status");
+    };
+
+    areFollowing(caller, user);
+  };
+
+  public query ({ caller }) func getPendingFollowRequests() : async [Principal] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view follow requests");
+    };
+
+    let result = List.empty<Principal>();
+    for ((requester, requests) in followRequests.entries()) {
+      requests.forEach(func(req) {
+        if (req.target == caller and req.status == #pending) {
+          result.add(requester);
+        };
+      });
+    };
+    result.toArray();
+  };
+
   public shared ({ caller }) func followUser(followedUserId : Principal) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can follow profiles");
@@ -438,13 +678,44 @@ actor {
     };
   };
 
+  public query ({ caller }) func getFollowerCount() : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view follower count");
+    };
+    let followers = List.empty<Principal>();
+    for ((user, followList) in follows.entries()) {
+      followList.forEach(func(follow) {
+        if (follow.following == caller) {
+          followers.add(user);
+        };
+      });
+    };
+    followers.toArray().size();
+  };
+
+  public query ({ caller }) func getFollowingCount() : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view following count");
+    };
+    switch (follows.get(caller)) {
+      case (null) { 0 };
+      case (?followList) { followList.toArray().size() };
+    };
+  };
+
+  // ==================== MESSAGING ====================
+
   public shared ({ caller }) func sendMessage(recipient : Principal, content : Text) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can send messages");
     };
 
-    if (not isMatched(caller, recipient)) {
-      Runtime.trap("Unauthorized: Can only message matched users");
+    // Users can chat if either has sent a follow request to the other (one-sided is fine)
+    let hasRequest = hasFollowRequestBetween(caller, recipient);
+    let matched = isMatched(caller, recipient) and isMatched(recipient, caller);
+
+    if (not (hasRequest or matched)) {
+      Runtime.trap("Unauthorized: Can only message users with follow requests or matched users");
     };
 
     let fullMessage = {
@@ -490,8 +761,14 @@ actor {
       Runtime.trap("Unauthorized: Only users can view conversations");
     };
 
-    if (caller != otherUser and not isMatched(caller, otherUser)) {
-      Runtime.trap("Unauthorized: Can only view conversations with matched users");
+    // Chat is private — only visible to the two participants
+    if (caller != otherUser) {
+      let hasRequest = hasFollowRequestBetween(caller, otherUser);
+      let matched = isMatched(caller, otherUser) and isMatched(otherUser, caller);
+
+      if (not (hasRequest or matched)) {
+        Runtime.trap("Unauthorized: Can only view conversations with users who have follow requests or matched users");
+      };
     };
 
     let allMessages = messagesForPair(caller, otherUser);
@@ -702,6 +979,13 @@ actor {
   };
 
   public query ({ caller }) func getMyProfile() : async ?UserProfile.Profile {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view their profile");
+    };
+    profiles.get(caller);
+  };
+
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile.Profile {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can view their profile");
     };

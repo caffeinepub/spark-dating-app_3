@@ -5,17 +5,24 @@ import type { Principal } from "@icp-sdk/core/principal";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Clock,
   Heart,
   MessageCircle,
+  RefreshCw,
   UserCheck,
+  UserMinus,
   UserPlus,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
-  useFollowUser,
+  FollowRequestStatus,
+  useFollowRequestStatus,
+  useFollowers,
   useFollowing,
   useLikeUser,
   useMatches,
+  useSendFollowRequest,
   useUnfollowUser,
   useUnlikeUser,
   useUserProfile,
@@ -39,10 +46,18 @@ export default function UserProfilePage() {
     })();
   }, [userId]);
 
-  const { data: profile, isLoading } = useUserProfile(principal);
+  const {
+    data: profile,
+    isLoading,
+    isError,
+    refetch,
+  } = useUserProfile(principal);
   const { data: whoILiked } = useWhoILiked();
   const { data: following } = useFollowing();
+  const { data: followers } = useFollowers();
   const { data: matches } = useMatches();
+  const { data: followStatus, isLoading: followStatusLoading } =
+    useFollowRequestStatus(principal);
 
   const likedSet = useMemo(
     () => new Set((whoILiked ?? []).map((p) => p.toString())),
@@ -52,21 +67,26 @@ export default function UserProfilePage() {
     () => new Set((following ?? []).map((p) => p.toString())),
     [following],
   );
+  const followersSet = useMemo(
+    () => new Set((followers ?? []).map((p) => p.toString())),
+    [followers],
+  );
   const matchSet = useMemo(
     () => new Set((matches ?? []).map((p) => p.principal?.toString())),
     [matches],
   );
 
   const isLiked = likedSet.has(userId ?? "");
-  const isFollowing = followingSet.has(userId ?? "");
+  const isCurrentlyFollowing = followingSet.has(userId ?? "");
+  // Allow chat if this user follows me OR I follow them OR we're matched
+  const theyFollowMe = followersSet.has(userId ?? "");
   const isMatched = matchSet.has(userId ?? "");
 
   const [liked, setLiked] = useState(isLiked);
-  const [follow, setFollow] = useState(isFollowing);
 
   const likeUser = useLikeUser();
   const unlikeUser = useUnlikeUser();
-  const followUser = useFollowUser();
+  const sendFollowRequest = useSendFollowRequest();
   const unfollowUser = useUnfollowUser();
 
   const handleLike = () => {
@@ -80,15 +100,73 @@ export default function UserProfilePage() {
     }
   };
 
-  const handleFollow = () => {
+  const handleFollowAction = async () => {
     if (!principal) return;
-    if (follow) {
-      setFollow(false);
+    if (isCurrentlyFollowing) {
       unfollowUser.mutate(principal);
+    } else if (followStatus === FollowRequestStatus.pending) {
+      toast.info("Follow request already sent.");
     } else {
-      setFollow(true);
-      followUser.mutate(principal);
+      try {
+        await sendFollowRequest.mutateAsync(principal);
+        toast.success("Follow request sent!");
+      } catch {
+        toast.error("Failed to send follow request.");
+      }
     }
+  };
+
+  const getFollowButton = () => {
+    if (followStatusLoading) {
+      return (
+        <Button size="lg" variant="outline" disabled className="flex-1">
+          <Clock className="w-5 h-5 mr-2 animate-pulse" />
+          Loading...
+        </Button>
+      );
+    }
+    if (isCurrentlyFollowing) {
+      return (
+        <Button
+          data-ocid="profile.unfollow.button"
+          onClick={handleFollowAction}
+          size="lg"
+          variant="outline"
+          disabled={unfollowUser.isPending}
+          className="flex-1"
+        >
+          <UserCheck className="w-5 h-5 mr-2 text-primary" />
+          Following
+        </Button>
+      );
+    }
+    if (followStatus === FollowRequestStatus.pending) {
+      return (
+        <Button
+          data-ocid="profile.requested.button"
+          size="lg"
+          variant="outline"
+          disabled
+          className="flex-1 opacity-60"
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          Requested
+        </Button>
+      );
+    }
+    return (
+      <Button
+        data-ocid="profile.follow.button"
+        onClick={handleFollowAction}
+        size="lg"
+        variant="outline"
+        disabled={sendFollowRequest.isPending}
+        className="flex-1"
+      >
+        <UserPlus className="w-5 h-5 mr-2" />
+        Follow
+      </Button>
+    );
   };
 
   // Show loading while principal is being parsed or profile is loading
@@ -103,20 +181,30 @@ export default function UserProfilePage() {
     );
   }
 
-  if (!profile) {
+  if (isError || !profile) {
     return (
       <div className="container mx-auto max-w-lg px-4 py-8 text-center">
-        <p className="text-muted-foreground">Profile not found.</p>
-        <Button
-          onClick={() => navigate({ to: "/discover" })}
-          variant="outline"
-          className="mt-4"
-        >
-          Go back
-        </Button>
+        <p className="text-muted-foreground mb-2">
+          Profile not found or failed to load.
+        </p>
+        <div className="flex gap-3 justify-center mt-4">
+          <Button onClick={() => refetch()} variant="outline" className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </Button>
+          <Button
+            onClick={() => navigate({ to: "/discover" })}
+            variant="outline"
+          >
+            Go back
+          </Button>
+        </div>
       </div>
     );
   }
+
+  // Chat allowed if either user follows the other, or matched
+  const canChat = isCurrentlyFollowing || theyFollowMe || isMatched;
 
   return (
     <div className="container mx-auto max-w-lg px-4 py-8">
@@ -182,6 +270,7 @@ export default function UserProfilePage() {
       {/* Actions */}
       <div className="flex gap-3">
         <Button
+          data-ocid="profile.like.button"
           onClick={handleLike}
           size="lg"
           className={`flex-1 border-0 ${
@@ -193,32 +282,26 @@ export default function UserProfilePage() {
           <Heart className={`w-5 h-5 mr-2 ${liked ? "fill-white" : ""}`} />
           {liked ? "Liked" : "Like"}
         </Button>
-        <Button
-          onClick={handleFollow}
-          size="lg"
-          variant="outline"
-          className="flex-1"
-        >
-          {follow ? (
-            <>
-              <UserCheck className="w-5 h-5 mr-2 text-primary" /> Following
-            </>
-          ) : (
-            <>
-              <UserPlus className="w-5 h-5 mr-2" /> Follow
-            </>
-          )}
-        </Button>
-        {isMatched && (
+
+        {getFollowButton()}
+
+        {canChat && (
           <Button
+            data-ocid="profile.chat.button"
             size="lg"
             onClick={() => navigate({ to: `/messages/${userId}` })}
             className="flex-1 gradient-primary text-white border-0"
           >
-            <MessageCircle className="w-5 h-5 mr-2" /> Message
+            <MessageCircle className="w-5 h-5 mr-2" /> Chat
           </Button>
         )}
       </div>
+
+      {!canChat && (
+        <p className="text-xs text-muted-foreground text-center mt-3">
+          Follow this user or have them follow you to start chatting
+        </p>
+      )}
     </div>
   );
 }

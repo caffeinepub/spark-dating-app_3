@@ -13,6 +13,7 @@ import type {
   Reel,
   Story,
 } from "../backend.d";
+import { FollowRequestStatus } from "../backend.d";
 import { useActor } from "./useActor";
 
 // Shared stale times to reduce redundant backend calls
@@ -188,6 +189,73 @@ export function useFollowing() {
   });
 }
 
+export function useFollowers() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["followers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getFollowers();
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+  });
+}
+
+export function useFollowerCount() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["followerCount"],
+    queryFn: async () => {
+      if (!actor) return 0n;
+      return actor.getFollowerCount();
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+  });
+}
+
+export function useFollowingCount() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["followingCount"],
+    queryFn: async () => {
+      if (!actor) return 0n;
+      return actor.getFollowingCount();
+    },
+    enabled: !!actor,
+    staleTime: STALE_SHORT,
+  });
+}
+
+export function usePendingFollowRequests() {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["pendingFollowRequests"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getPendingFollowRequests();
+    },
+    enabled: !!actor,
+    refetchInterval: 20000,
+    staleTime: 10000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useFollowRequestStatus(targetUser: Principal | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["followRequestStatus", targetUser?.toString()],
+    queryFn: async () => {
+      if (!actor || !targetUser) return null;
+      return actor.getFollowRequestStatus(targetUser);
+    },
+    enabled: !!actor && !!targetUser,
+    staleTime: STALE_SHORT,
+  });
+}
+
 export function useIsAdmin() {
   const { actor } = useActor();
   return useQuery({
@@ -274,6 +342,7 @@ export function useFollowUser() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["following"] });
+      qc.invalidateQueries({ queryKey: ["followingCount"] });
       qc.invalidateQueries({ queryKey: ["discoverProfiles"] });
     },
   });
@@ -289,7 +358,56 @@ export function useUnfollowUser() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["following"] });
+      qc.invalidateQueries({ queryKey: ["followingCount"] });
       qc.invalidateQueries({ queryKey: ["discoverProfiles"] });
+    },
+  });
+}
+
+export function useSendFollowRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUser: Principal) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.sendFollowRequest(targetUser);
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["followRequestStatus", vars.toString()],
+      });
+    },
+  });
+}
+
+export function useAcceptFollowRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requester: Principal) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.acceptFollowRequest(requester);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pendingFollowRequests"] });
+      qc.invalidateQueries({ queryKey: ["followers"] });
+      qc.invalidateQueries({ queryKey: ["followerCount"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["unreadCount"] });
+    },
+  });
+}
+
+export function useDeclineFollowRequest() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requester: Principal) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.declineFollowRequest(requester);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pendingFollowRequests"] });
     },
   });
 }
@@ -353,6 +471,7 @@ export function useAllPosts() {
     },
     enabled: !!actor,
     staleTime: STALE_SHORT,
+    refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
 }
@@ -367,6 +486,7 @@ export function useAllReels() {
     },
     enabled: !!actor,
     staleTime: STALE_SHORT,
+    refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
 }
@@ -381,6 +501,7 @@ export function useActiveStories() {
     },
     enabled: !!actor,
     staleTime: STALE_SHORT,
+    refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
 }
@@ -578,3 +699,6 @@ export function useCommentOnReel() {
     },
   });
 }
+
+// Re-export FollowRequestStatus for convenience
+export { FollowRequestStatus };

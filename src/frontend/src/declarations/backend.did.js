@@ -24,12 +24,27 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const Story = IDL.Record({
+  'id' : IDL.Nat,
+  'author' : IDL.Principal,
+  'timestamp' : IDL.Int,
+  'blobId' : IDL.Text,
+});
 export const Message = IDL.Record({
   'to' : IDL.Principal,
   'content' : IDL.Text,
   'from' : IDL.Principal,
   'isRead' : IDL.Bool,
   'timestamp' : IDL.Int,
+});
+export const Post = IDL.Record({
+  'id' : IDL.Nat,
+  'author' : IDL.Principal,
+  'likes' : IDL.Vec(IDL.Principal),
+  'timestamp' : IDL.Int,
+  'caption' : IDL.Text,
+  'blobId' : IDL.Text,
+  'commentCount' : IDL.Nat,
 });
 export const Interest = IDL.Record({ 'id' : IDL.Nat, 'name' : IDL.Text });
 export const Gender = IDL.Variant({
@@ -49,10 +64,31 @@ export const Profile = IDL.Record({
   'gender' : Gender,
   'lastActive' : IDL.Int,
 });
+export const Reel = IDL.Record({
+  'id' : IDL.Nat,
+  'author' : IDL.Principal,
+  'likes' : IDL.Vec(IDL.Principal),
+  'timestamp' : IDL.Int,
+  'caption' : IDL.Text,
+  'blobId' : IDL.Text,
+  'commentCount' : IDL.Nat,
+});
+export const FollowRequestStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'accepted' : IDL.Null,
+  'declined' : IDL.Null,
+});
 export const Notification = IDL.Record({
   'to' : IDL.Principal,
   'isRead' : IDL.Bool,
   'message' : IDL.Text,
+  'timestamp' : IDL.Int,
+});
+export const Comment = IDL.Record({
+  'id' : IDL.Nat,
+  'contentId' : IDL.Nat,
+  'text' : IDL.Text,
+  'author' : IDL.Principal,
   'timestamp' : IDL.Int,
 });
 export const VisibleInterest = IDL.Record({});
@@ -63,37 +99,6 @@ export const InterestDisplayPrefs = IDL.Record({
   'visibleInterests' : IDL.Vec(VisibleInterest),
   'showAge' : IDL.Bool,
   'genderPreference' : Gender,
-});
-export const Post = IDL.Record({
-  'id' : IDL.Nat,
-  'author' : IDL.Principal,
-  'blobId' : IDL.Text,
-  'caption' : IDL.Text,
-  'timestamp' : IDL.Int,
-  'likes' : IDL.Vec(IDL.Principal),
-  'commentCount' : IDL.Nat,
-});
-export const Reel = IDL.Record({
-  'id' : IDL.Nat,
-  'author' : IDL.Principal,
-  'blobId' : IDL.Text,
-  'caption' : IDL.Text,
-  'timestamp' : IDL.Int,
-  'likes' : IDL.Vec(IDL.Principal),
-  'commentCount' : IDL.Nat,
-});
-export const Story = IDL.Record({
-  'id' : IDL.Nat,
-  'author' : IDL.Principal,
-  'blobId' : IDL.Text,
-  'timestamp' : IDL.Int,
-});
-export const Comment = IDL.Record({
-  'id' : IDL.Nat,
-  'contentId' : IDL.Nat,
-  'author' : IDL.Principal,
-  'text' : IDL.Text,
-  'timestamp' : IDL.Int,
 });
 
 export const idlService = IDL.Service({
@@ -124,12 +129,15 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'acceptFollowRequest' : IDL.Func([IDL.Principal], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'commentOnPost' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
   'commentOnReel' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
   'createPost' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'createReel' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'createStory' : IDL.Func([IDL.Text], [IDL.Nat], []),
+  'declineFollowRequest' : IDL.Func([IDL.Principal], [], []),
+  'deleteExpiredStories' : IDL.Func([], [], []),
   'deletePost' : IDL.Func([IDL.Nat], [], []),
   'deleteReel' : IDL.Func([IDL.Nat], [], []),
   'fillSampleData' : IDL.Func([], [], []),
@@ -143,17 +151,30 @@ export const idlService = IDL.Service({
   'getAllPosts' : IDL.Func([], [IDL.Vec(Post)], ['query']),
   'getAllProfiles' : IDL.Func([], [IDL.Vec(Profile)], ['query']),
   'getAllReels' : IDL.Func([], [IDL.Vec(Reel)], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getConversationsWithUser' : IDL.Func(
       [IDL.Principal],
       [IDL.Vec(Message)],
       ['query'],
     ),
+  'getFollowRequestStatus' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(FollowRequestStatus)],
+      ['query'],
+    ),
+  'getFollowerCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getFollowers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
   'getFollowing' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+  'getFollowingCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getMyProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
   'getMyUsername' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
   'getNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
+  'getPendingFollowRequests' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Principal)],
+      ['query'],
+    ),
   'getPostComments' : IDL.Func([IDL.Nat], [IDL.Vec(Comment)], ['query']),
   'getPostsByUser' : IDL.Func([IDL.Principal], [IDL.Vec(Post)], ['query']),
   'getReelComments' : IDL.Func([IDL.Nat], [IDL.Vec(Comment)], ['query']),
@@ -167,6 +188,7 @@ export const idlService = IDL.Service({
   'isAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isAuthenticated' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isFollowing' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
   'isUsernameAvailable' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   'likePost' : IDL.Func([IDL.Nat], [], []),
   'likeReel' : IDL.Func([IDL.Nat], [], []),
@@ -190,6 +212,7 @@ export const idlService = IDL.Service({
     ),
   'saveCallerUserProfile' : IDL.Func([Profile], [], []),
   'saveCallerUserProfileInfo' : IDL.Func([InterestDisplayPrefs], [], []),
+  'sendFollowRequest' : IDL.Func([IDL.Principal], [], []),
   'sendMessage' : IDL.Func([IDL.Principal, IDL.Text], [], []),
   'setOffline' : IDL.Func([], [], []),
   'setOnline' : IDL.Func([], [], []),
@@ -218,12 +241,27 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const Story = IDL.Record({
+    'id' : IDL.Nat,
+    'author' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'blobId' : IDL.Text,
+  });
   const Message = IDL.Record({
     'to' : IDL.Principal,
     'content' : IDL.Text,
     'from' : IDL.Principal,
     'isRead' : IDL.Bool,
     'timestamp' : IDL.Int,
+  });
+  const Post = IDL.Record({
+    'id' : IDL.Nat,
+    'author' : IDL.Principal,
+    'likes' : IDL.Vec(IDL.Principal),
+    'timestamp' : IDL.Int,
+    'caption' : IDL.Text,
+    'blobId' : IDL.Text,
+    'commentCount' : IDL.Nat,
   });
   const Interest = IDL.Record({ 'id' : IDL.Nat, 'name' : IDL.Text });
   const Gender = IDL.Variant({
@@ -243,10 +281,31 @@ export const idlFactory = ({ IDL }) => {
     'gender' : Gender,
     'lastActive' : IDL.Int,
   });
+  const Reel = IDL.Record({
+    'id' : IDL.Nat,
+    'author' : IDL.Principal,
+    'likes' : IDL.Vec(IDL.Principal),
+    'timestamp' : IDL.Int,
+    'caption' : IDL.Text,
+    'blobId' : IDL.Text,
+    'commentCount' : IDL.Nat,
+  });
+  const FollowRequestStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'accepted' : IDL.Null,
+    'declined' : IDL.Null,
+  });
   const Notification = IDL.Record({
     'to' : IDL.Principal,
     'isRead' : IDL.Bool,
     'message' : IDL.Text,
+    'timestamp' : IDL.Int,
+  });
+  const Comment = IDL.Record({
+    'id' : IDL.Nat,
+    'contentId' : IDL.Nat,
+    'text' : IDL.Text,
+    'author' : IDL.Principal,
     'timestamp' : IDL.Int,
   });
   const VisibleInterest = IDL.Record({});
@@ -258,38 +317,7 @@ export const idlFactory = ({ IDL }) => {
     'showAge' : IDL.Bool,
     'genderPreference' : Gender,
   });
-  const Post = IDL.Record({
-    'id' : IDL.Nat,
-    'author' : IDL.Principal,
-    'blobId' : IDL.Text,
-    'caption' : IDL.Text,
-    'timestamp' : IDL.Int,
-    'likes' : IDL.Vec(IDL.Principal),
-    'commentCount' : IDL.Nat,
-  });
-  const Reel = IDL.Record({
-    'id' : IDL.Nat,
-    'author' : IDL.Principal,
-    'blobId' : IDL.Text,
-    'caption' : IDL.Text,
-    'timestamp' : IDL.Int,
-    'likes' : IDL.Vec(IDL.Principal),
-    'commentCount' : IDL.Nat,
-  });
-  const Story = IDL.Record({
-    'id' : IDL.Nat,
-    'author' : IDL.Principal,
-    'blobId' : IDL.Text,
-    'timestamp' : IDL.Int,
-  });
-  const Comment = IDL.Record({
-    'id' : IDL.Nat,
-    'contentId' : IDL.Nat,
-    'author' : IDL.Principal,
-    'text' : IDL.Text,
-    'timestamp' : IDL.Int,
-  });
-
+  
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func(
         [IDL.Vec(IDL.Nat8)],
@@ -318,12 +346,15 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'acceptFollowRequest' : IDL.Func([IDL.Principal], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'commentOnPost' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
     'commentOnReel' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
     'createPost' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'createReel' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'createStory' : IDL.Func([IDL.Text], [IDL.Nat], []),
+    'declineFollowRequest' : IDL.Func([IDL.Principal], [], []),
+    'deleteExpiredStories' : IDL.Func([], [], []),
     'deletePost' : IDL.Func([IDL.Nat], [], []),
     'deleteReel' : IDL.Func([IDL.Nat], [], []),
     'fillSampleData' : IDL.Func([], [], []),
@@ -337,17 +368,30 @@ export const idlFactory = ({ IDL }) => {
     'getAllPosts' : IDL.Func([], [IDL.Vec(Post)], ['query']),
     'getAllProfiles' : IDL.Func([], [IDL.Vec(Profile)], ['query']),
     'getAllReels' : IDL.Func([], [IDL.Vec(Reel)], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getConversationsWithUser' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(Message)],
         ['query'],
       ),
+    'getFollowRequestStatus' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(FollowRequestStatus)],
+        ['query'],
+      ),
+    'getFollowerCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getFollowers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getFollowing' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'getFollowingCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getMyProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getMyUsername' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
     'getNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
+    'getPendingFollowRequests' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Principal)],
+        ['query'],
+      ),
     'getPostComments' : IDL.Func([IDL.Nat], [IDL.Vec(Comment)], ['query']),
     'getPostsByUser' : IDL.Func([IDL.Principal], [IDL.Vec(Post)], ['query']),
     'getReelComments' : IDL.Func([IDL.Nat], [IDL.Vec(Comment)], ['query']),
@@ -361,6 +405,7 @@ export const idlFactory = ({ IDL }) => {
     'isAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isAuthenticated' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isFollowing' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isUsernameAvailable' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'likePost' : IDL.Func([IDL.Nat], [], []),
     'likeReel' : IDL.Func([IDL.Nat], [], []),
@@ -384,6 +429,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'saveCallerUserProfile' : IDL.Func([Profile], [], []),
     'saveCallerUserProfileInfo' : IDL.Func([InterestDisplayPrefs], [], []),
+    'sendFollowRequest' : IDL.Func([IDL.Principal], [], []),
     'sendMessage' : IDL.Func([IDL.Principal, IDL.Text], [], []),
     'setOffline' : IDL.Func([], [], []),
     'setOnline' : IDL.Func([], [], []),

@@ -10,6 +10,16 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface Comment {
+  'id' : bigint,
+  'contentId' : bigint,
+  'text' : string,
+  'author' : Principal,
+  'timestamp' : bigint,
+}
+export type FollowRequestStatus = { 'pending' : null } |
+  { 'accepted' : null } |
+  { 'declined' : null };
 export type Gender = { 'other' : null } |
   { 'female' : null } |
   { 'male' : null };
@@ -35,6 +45,15 @@ export interface Notification {
   'message' : string,
   'timestamp' : bigint,
 }
+export interface Post {
+  'id' : bigint,
+  'author' : Principal,
+  'likes' : Array<Principal>,
+  'timestamp' : bigint,
+  'caption' : string,
+  'blobId' : string,
+  'commentCount' : bigint,
+}
 export interface Profile {
   'id' : bigint,
   'bio' : string,
@@ -47,15 +66,25 @@ export interface Profile {
   'gender' : Gender,
   'lastActive' : bigint,
 }
+export interface Reel {
+  'id' : bigint,
+  'author' : Principal,
+  'likes' : Array<Principal>,
+  'timestamp' : bigint,
+  'caption' : string,
+  'blobId' : string,
+  'commentCount' : bigint,
+}
+export interface Story {
+  'id' : bigint,
+  'author' : Principal,
+  'timestamp' : bigint,
+  'blobId' : string,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export type VisibleInterest = {};
-export interface Post { 'id': bigint, 'author': Principal, 'blobId': string, 'caption': string, 'timestamp': bigint, 'likes': Array<Principal>, 'commentCount': bigint }
-export interface Reel { 'id': bigint, 'author': Principal, 'blobId': string, 'caption': string, 'timestamp': bigint, 'likes': Array<Principal>, 'commentCount': bigint }
-export interface Story { 'id': bigint, 'author': Principal, 'blobId': string, 'timestamp': bigint }
-export interface Comment { 'id': bigint, 'contentId': bigint, 'author': Principal, 'text': string, 'timestamp': bigint }
-
 export interface _CaffeineStorageCreateCertificateResult {
   'method' : string,
   'blob_hash' : string,
@@ -84,18 +113,43 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'acceptFollowRequest' : ActorMethod<[Principal], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'commentOnPost' : ActorMethod<[bigint, string], bigint>,
+  'commentOnReel' : ActorMethod<[bigint, string], bigint>,
+  'createPost' : ActorMethod<[string, string], bigint>,
+  'createReel' : ActorMethod<[string, string], bigint>,
+  'createStory' : ActorMethod<[string], bigint>,
+  'declineFollowRequest' : ActorMethod<[Principal], undefined>,
+  'deleteExpiredStories' : ActorMethod<[], undefined>,
+  'deletePost' : ActorMethod<[bigint], undefined>,
+  'deleteReel' : ActorMethod<[bigint], undefined>,
   'fillSampleData' : ActorMethod<[], undefined>,
   'followUser' : ActorMethod<[Principal], undefined>,
+  'getActiveStories' : ActorMethod<[], Array<Story>>,
   'getAllConversations' : ActorMethod<[], Array<[Principal, Array<Message>]>>,
+  'getAllPosts' : ActorMethod<[], Array<Post>>,
   'getAllProfiles' : ActorMethod<[], Array<Profile>>,
+  'getAllReels' : ActorMethod<[], Array<Reel>>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [Profile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getConversationsWithUser' : ActorMethod<[Principal], Array<Message>>,
+  'getFollowRequestStatus' : ActorMethod<
+    [Principal],
+    [] | [FollowRequestStatus]
+  >,
+  'getFollowerCount' : ActorMethod<[], bigint>,
   'getFollowers' : ActorMethod<[], Array<Principal>>,
   'getFollowing' : ActorMethod<[], Array<Principal>>,
+  'getFollowingCount' : ActorMethod<[], bigint>,
   'getMyProfile' : ActorMethod<[], [] | [Profile]>,
   'getMyUsername' : ActorMethod<[], [] | [string]>,
   'getNotifications' : ActorMethod<[], Array<Notification>>,
+  'getPendingFollowRequests' : ActorMethod<[], Array<Principal>>,
+  'getPostComments' : ActorMethod<[bigint], Array<Comment>>,
+  'getPostsByUser' : ActorMethod<[Principal], Array<Post>>,
+  'getReelComments' : ActorMethod<[bigint], Array<Comment>>,
+  'getReelsByUser' : ActorMethod<[Principal], Array<Reel>>,
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUserCount' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], Profile>,
@@ -105,7 +159,10 @@ export interface _SERVICE {
   'isAdmin' : ActorMethod<[], boolean>,
   'isAuthenticated' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isFollowing' : ActorMethod<[Principal], boolean>,
   'isUsernameAvailable' : ActorMethod<[string], boolean>,
+  'likePost' : ActorMethod<[bigint], undefined>,
+  'likeReel' : ActorMethod<[bigint], undefined>,
   'likeUser' : ActorMethod<[Principal], undefined>,
   'loginWithCredentials' : ActorMethod<[string, string], boolean>,
   'markNotificationAsRead' : ActorMethod<[bigint], undefined>,
@@ -117,28 +174,13 @@ export interface _SERVICE {
   >,
   'saveCallerUserProfile' : ActorMethod<[Profile], undefined>,
   'saveCallerUserProfileInfo' : ActorMethod<[InterestDisplayPrefs], undefined>,
+  'sendFollowRequest' : ActorMethod<[Principal], undefined>,
   'sendMessage' : ActorMethod<[Principal, string], undefined>,
   'setOffline' : ActorMethod<[], undefined>,
   'setOnline' : ActorMethod<[], undefined>,
   'unfollowUser' : ActorMethod<[Principal], undefined>,
-  'commentOnPost': ActorMethod<[bigint, string], bigint>,
-  'commentOnReel': ActorMethod<[bigint, string], bigint>,
-  'createPost': ActorMethod<[string, string], bigint>,
-  'createReel': ActorMethod<[string, string], bigint>,
-  'createStory': ActorMethod<[string], bigint>,
-  'deletePost': ActorMethod<[bigint], undefined>,
-  'deleteReel': ActorMethod<[bigint], undefined>,
-  'getActiveStories': ActorMethod<[], Array<Story>>,
-  'getAllPosts': ActorMethod<[], Array<Post>>,
-  'getAllReels': ActorMethod<[], Array<Reel>>,
-  'getPostComments': ActorMethod<[bigint], Array<Comment>>,
-  'getPostsByUser': ActorMethod<[Principal], Array<Post>>,
-  'getReelComments': ActorMethod<[bigint], Array<Comment>>,
-  'getReelsByUser': ActorMethod<[Principal], Array<Reel>>,
-  'likePost': ActorMethod<[bigint], undefined>,
-  'likeReel': ActorMethod<[bigint], undefined>,
-  'unlikePost': ActorMethod<[bigint], undefined>,
-  'unlikeReel': ActorMethod<[bigint], undefined>,
+  'unlikePost' : ActorMethod<[bigint], undefined>,
+  'unlikeReel' : ActorMethod<[bigint], undefined>,
   'unlikeUser' : ActorMethod<[Principal], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

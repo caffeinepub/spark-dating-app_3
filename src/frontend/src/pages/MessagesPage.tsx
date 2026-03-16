@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "@tanstack/react-router";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Search } from "lucide-react";
 import { useConversations } from "../hooks/useQueries";
 
 export default function MessagesPage() {
@@ -12,7 +12,7 @@ export default function MessagesPage() {
     <div className="container mx-auto max-w-2xl px-4 py-8">
       <div className="mb-8">
         <h1 className="font-display text-3xl font-bold mb-1">Messages</h1>
-        <p className="text-muted-foreground">Your conversations</p>
+        <p className="text-muted-foreground">Your private conversations</p>
       </div>
 
       {isLoading ? (
@@ -39,14 +39,18 @@ export default function MessagesPage() {
             No messages yet
           </h3>
           <p className="text-muted-foreground mb-4">
-            Match with someone to start a conversation!
+            Follow someone and start a conversation!
           </p>
-          <Button
-            onClick={() => navigate({ to: "/matches" })}
-            className="gradient-primary text-white border-0"
-          >
-            See Matches
-          </Button>
+          <div className="flex gap-3 justify-center">
+            <Button
+              data-ocid="messages.search.button"
+              onClick={() => navigate({ to: "/search" })}
+              className="gradient-primary text-white border-0 gap-2"
+            >
+              <Search className="w-4 h-4" />
+              Find People
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
