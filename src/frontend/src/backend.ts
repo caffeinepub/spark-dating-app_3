@@ -130,6 +130,12 @@ export interface Profile {
     gender: Gender;
     lastActive: bigint;
 }
+export interface SearchResult {
+    principal: Principal;
+    displayName: string;
+    photoLink: string;
+    username: string;
+}
 export interface VisibleInterest {
 }
 export interface InterestDisplayPrefs {
@@ -215,6 +221,7 @@ export interface backendInterface {
     getAllConversations(): Promise<Array<[Principal, Array<Message>]>>;
     getAllPosts(): Promise<Array<Post>>;
     getAllProfiles(): Promise<Array<Profile>>;
+    searchUsers(query: string): Promise<Array<SearchResult>>;
     getAllReels(): Promise<Array<Reel>>;
     getCallerUserProfile(): Promise<Profile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -599,6 +606,17 @@ export class Backend implements backendInterface {
             return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
         }
     }
+    async searchUsers(query: string): Promise<Array<SearchResult>> {
+        try {
+            const result = await this.actor.searchUsers(query);
+            return result as Array<SearchResult>;
+        } catch (err) {
+            console.error("searchUsers failed:", err);
+            return [];
+        }
+    }
+
+
     async getAllReels(): Promise<Array<Reel>> {
         if (this.processError) {
             try {

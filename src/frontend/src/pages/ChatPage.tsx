@@ -2,10 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { Principal } from "@icp-sdk/core/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useChat, useSendMessage, useUserProfile } from "../hooks/useQueries";
 
@@ -16,16 +16,14 @@ export default function ChatPage() {
   const [message, setMessage] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Convert string userId to Principal
-  let otherPrincipal: Principal | null = null;
-  try {
-    if (userId) {
-      // We'll pass the raw string and let the actor handle it
-      otherPrincipal = userId as unknown as Principal;
+  const otherPrincipal = useMemo(() => {
+    if (!userId) return null;
+    try {
+      return Principal.fromText(userId);
+    } catch {
+      return null;
     }
-  } catch {
-    otherPrincipal = null;
-  }
+  }, [userId]);
 
   const { data: messages, isLoading } = useChat(otherPrincipal);
   const { data: profile } = useUserProfile(otherPrincipal);
@@ -47,13 +45,13 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
-      {/* Chat header */}
       <div className="glass border-b border-border px-4 py-3 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => navigate({ to: "/messages" })}
           className="shrink-0"
+          data-ocid="chat.back_button"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -80,7 +78,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {isLoading ? (
           <div data-ocid="messages.loading_state" className="space-y-3">
@@ -138,10 +135,9 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="glass border-t border-border px-4 py-3 flex items-center gap-3">
         <Input
-          data-ocid="messages.message_input"
+          data-ocid="messages.input"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."

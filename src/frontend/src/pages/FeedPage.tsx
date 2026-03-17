@@ -45,6 +45,7 @@ import {
   useUnlikePost,
   useUnlikeReel,
   useUserProfile,
+  useUsernameByPrincipal,
 } from "../hooks/useQueries";
 
 // ── Types ───────────────────────────────────────────────────────────────────────────────
@@ -370,19 +371,21 @@ function StoryViewer({
 
 function AuthorLine({ principal }: { principal: Principal }) {
   const { data: profile } = useUserProfile(principal);
+  const { data: username } = useUsernameByPrincipal(principal);
+  const displayLabel = username
+    ? `@${username}`
+    : (profile?.displayName ?? principal.toString().slice(0, 10));
   return (
     <div className="flex items-center gap-2">
       <Avatar className="w-8 h-8">
         <AvatarImage src={profile?.photoLink} />
         <AvatarFallback className="gradient-soft text-white text-xs font-semibold">
-          {profile?.displayName?.charAt(0)?.toUpperCase() ??
+          {(username ?? profile?.displayName)?.charAt(0)?.toUpperCase() ??
             principal.toString().slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <div>
-        <p className="font-semibold text-sm leading-none">
-          {profile?.displayName ?? principal.toString().slice(0, 10)}
-        </p>
+        <p className="font-semibold text-sm leading-none">{displayLabel}</p>
       </div>
     </div>
   );
@@ -407,6 +410,8 @@ function PostCard({
   const likePost = useLikePost();
   const unlikePost = useUnlikePost();
   const deletePost = useDeletePost();
+  const { data: authorProfile } = useUserProfile(post.author);
+  const { data: postAuthorUsername } = useUsernameByPrincipal(post.author);
   const [likeAnim, setLikeAnim] = useState(false);
   const isAuthor = myPrincipal
     ? post.author.toString() === myPrincipal.toString()
@@ -531,7 +536,10 @@ function PostCard({
         {post.caption && (
           <p className="text-sm">
             <span className="font-semibold mr-1">
-              {post.author.toString().slice(0, 8)}
+              {postAuthorUsername
+                ? `@${postAuthorUsername}`
+                : (authorProfile?.displayName ??
+                  post.author.toString().slice(0, 8))}
             </span>
             {post.caption}
           </p>
@@ -574,6 +582,8 @@ function ReelCard({
   const likeReel = useLikeReel();
   const unlikeReel = useUnlikeReel();
   const deleteReel = useDeleteReel();
+  const { data: reelAuthorProfile } = useUserProfile(reel.author);
+  const { data: reelAuthorUsername } = useUsernameByPrincipal(reel.author);
   const videoRef = useRef<HTMLVideoElement>(null);
   const isAuthor = myPrincipal
     ? reel.author.toString() === myPrincipal.toString()
@@ -710,7 +720,10 @@ function ReelCard({
         {reel.caption && (
           <p className="text-sm">
             <span className="font-semibold mr-1">
-              {reel.author.toString().slice(0, 8)}
+              {reelAuthorUsername
+                ? `@${reelAuthorUsername}`
+                : (reelAuthorProfile?.displayName ??
+                  reel.author.toString().slice(0, 8))}
             </span>
             {reel.caption}
           </p>
@@ -736,6 +749,35 @@ function ReelCard({
 
 // ── Detail / Comments dialog ──────────────────────────────────────────────────────────
 
+function CommentItem({ c, index }: { c: Comment; index: number }) {
+  const { data: profile } = useUserProfile(c.author);
+  const { data: commentUsername } = useUsernameByPrincipal(c.author);
+  const displayName = commentUsername
+    ? `@${commentUsername}`
+    : (profile?.displayName ?? c.author.toString().slice(0, 8));
+  return (
+    <div
+      data-ocid={`feed.comment.item.${index}`}
+      className="flex gap-2 text-sm"
+    >
+      <Avatar className="w-7 h-7 flex-shrink-0">
+        <AvatarFallback className="gradient-soft text-white text-[10px]">
+          {displayName.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div>
+        <span className="font-semibold">{displayName} </span>
+        <span className="text-foreground">{c.text}</span>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {formatDistanceToNow(new Date(Number(c.timestamp / 1_000_000n)), {
+            addSuffix: true,
+          })}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function DetailDialog({
   item,
   onClose,
@@ -759,6 +801,9 @@ function DetailDialog({
 
   const comments: Comment[] =
     item?.type === "post" ? postComments : reelComments;
+  const { data: dialogAuthorProfile } = useUserProfile(
+    item?.data?.author ?? null,
+  );
 
   if (!item) return null;
 
@@ -858,7 +903,10 @@ function DetailDialog({
             {"caption" in data && data.caption && (
               <p className="text-sm">
                 <span className="font-semibold mr-1">
-                  {data.author.toString().slice(0, 8)}
+                  {(dialogAuthorProfile as any)?.username
+                    ? `@${(dialogAuthorProfile as any).username}`
+                    : (dialogAuthorProfile?.displayName ??
+                      data.author.toString().slice(0, 8))}
                 </span>
                 {data.caption}
               </p>
@@ -872,29 +920,7 @@ function DetailDialog({
               </p>
             ) : (
               comments.map((c, i) => (
-                <div
-                  key={c.id.toString()}
-                  data-ocid={`feed.comment.item.${i + 1}`}
-                  className="flex gap-2 text-sm"
-                >
-                  <Avatar className="w-7 h-7 flex-shrink-0">
-                    <AvatarFallback className="gradient-soft text-white text-[10px]">
-                      {c.author.toString().slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <span className="font-semibold">
-                      {c.author.toString().slice(0, 8)}{" "}
-                    </span>
-                    <span className="text-foreground">{c.text}</span>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {formatDistanceToNow(
-                        new Date(Number(c.timestamp / 1_000_000n)),
-                        { addSuffix: true },
-                      )}
-                    </p>
-                  </div>
-                </div>
+                <CommentItem key={c.id.toString()} c={c} index={i + 1} />
               ))
             )}
           </div>

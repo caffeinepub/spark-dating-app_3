@@ -5,19 +5,33 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, UserCheck, UserPlus, Users } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
-import type { Profile } from "../backend";
+import { useState } from "react";
+import type { SearchResult } from "../backend";
 import { useActor } from "../hooks/useActor";
 
-function useAllProfiles() {
+// Strip leading @ so both "john" and "@john" find the same results
+function normalizeQuery(q: string): string {
+  const trimmed = q.trim();
+  return trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+}
+
+function useSearchUsers(rawQuery: string) {
   const { actor } = useActor();
-  return useQuery<Profile[]>({
-    queryKey: ["allProfiles"],
+  const query = normalizeQuery(rawQuery);
+  return useQuery<SearchResult[]>({
+    queryKey: ["searchUsers", query],
     queryFn: async () => {
-      if (!actor) return [];
-      return actor.getAllProfiles();
+      if (!actor || !query) return [];
+      try {
+        const results = await actor.searchUsers(query);
+        return results;
+      } catch (err) {
+        console.error("searchUsers error:", err);
+        return [];
+      }
     },
-    enabled: !!actor,
+    enabled: !!actor && query.length > 0,
+    staleTime: 1000,
   });
 }
 
@@ -36,7 +50,7 @@ function useFollowing() {
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
-  const { data: profiles = [] } = useAllProfiles();
+  const { data: results = [], isLoading } = useSearchUsers(query);
   const { data: following = [] } = useFollowing();
   const { actor } = useActor();
   const qc = useQueryClient();
@@ -60,15 +74,7 @@ export default function SearchPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["myFollowing"] }),
   });
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return profiles.filter(
-      (p) =>
-        p.displayName.toLowerCase().includes(q) ||
-        p.principal.toString().toLowerCase().includes(q),
-    );
-  }, [profiles, query]);
+  const hasQuery = query.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,7 +86,7 @@ export default function SearchPage() {
             data-ocid="search.input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people..."
+            placeholder="Search by name or @username..."
             className="pl-9 bg-muted/50 border-border rounded-full"
             autoFocus
           />
@@ -89,7 +95,7 @@ export default function SearchPage() {
 
       <div className="max-w-xl mx-auto px-4 py-4">
         <AnimatePresence mode="wait">
-          {!query.trim() ? (
+          {!hasQuery ? (
             <motion.div
               key="placeholder"
               initial={{ opacity: 0 }}
@@ -104,10 +110,20 @@ export default function SearchPage() {
                 Search for people
               </p>
               <p className="text-muted-foreground text-sm mt-1">
-                Find friends by name or username
+                Find friends by name or @username
               </p>
             </motion.div>
-          ) : filtered.length === 0 ? (
+          ) : isLoading ? (
+            <motion.div
+              key="loading"
+              data-ocid="search.loading_state"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex justify-center py-12"
+            >
+              <div className="w-6 h-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            </motion.div>
+          ) : results.length === 0 ? (
             <motion.div
               key="empty"
               data-ocid="search.empty_state"
@@ -120,10 +136,10 @@ export default function SearchPage() {
                 <Users className="w-7 h-7 text-muted-foreground" />
               </div>
               <p className="text-foreground font-semibold">
-                No results for "{query}"
+                No results for &ldquo;{query}&rdquo;
               </p>
               <p className="text-muted-foreground text-sm mt-1">
-                Try a different name
+                Try a different name or @username
               </p>
             </motion.div>
           ) : (
@@ -134,10 +150,10 @@ export default function SearchPage() {
               exit={{ opacity: 0 }}
               className="space-y-2"
             >
-              {filtered.map((profile, idx) => {
-                const principalStr = profile.principal.toString();
-                const isFollowing = following.includes(principalStr);
-                const isLoading =
+              {results.map((user, idx) => {
+                const principalStr = user.principal.toString();
+                const isFollowingUser = following.includes(principalStr);
+                const isLoadingFollow =
                   (followMutation.isPending &&
                     followMutation.variables === principalStr) ||
                   (unfollowMutation.isPending &&
@@ -155,43 +171,43 @@ export default function SearchPage() {
                   >
                     <Avatar className="w-12 h-12 shrink-0">
                       <AvatarImage
-                        src={profile.photoLink}
-                        alt={profile.displayName}
+                        src={user.photoLink}
+                        alt={user.displayName}
                       />
                       <AvatarFallback className="gradient-primary text-white font-semibold">
-                        {profile.displayName?.charAt(0)?.toUpperCase() || "?"}
+                        {user.displayName?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-foreground truncate">
-                        {profile.displayName}
+                        {user.displayName}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {principalStr.slice(0, 20)}...
+                        {user.username ? `@${user.username}` : ""}
                       </p>
                     </div>
 
                     <Button
                       data-ocid={`search.follow_button.${idx + 1}`}
                       size="sm"
-                      variant={isFollowing ? "outline" : "default"}
-                      disabled={isLoading}
+                      variant={isFollowingUser ? "outline" : "default"}
+                      disabled={isLoadingFollow}
                       className={
-                        isFollowing
+                        isFollowingUser
                           ? ""
                           : "gradient-primary border-0 text-white hover:opacity-90"
                       }
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isFollowing) {
+                        if (isFollowingUser) {
                           unfollowMutation.mutate(principalStr);
                         } else {
                           followMutation.mutate(principalStr);
                         }
                       }}
                     >
-                      {isFollowing ? (
+                      {isFollowingUser ? (
                         <>
                           <UserCheck className="w-3.5 h-3.5 mr-1" />
                           Following

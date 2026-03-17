@@ -286,30 +286,23 @@ actor {
     combined.sort(Message.compareByTimestamp);
   };
 
+  // Any logged-in user can view any profile (needed for public feed)
   public query ({ caller }) func getUserProfile(user : Principal) : async UserProfile.Profile {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can view profiles");
     };
-
-    if (caller == user or AccessControl.isAdmin(accessControlState, caller)) {
-      switch (profiles.get(user)) {
-        case (null) { Runtime.trap("Profile does not exist") };
-        case (?profile) { profile };
-      };
-    } else {
-      let callerLikesUser = isMatched(caller, user);
-      let userLikesCaller = isMatched(user, caller);
-      let hasFollowRequest = hasFollowRequestBetween(caller, user);
-
-      if ((callerLikesUser and userLikesCaller) or hasFollowRequest) {
-        switch (profiles.get(user)) {
-          case (null) { Runtime.trap("Profile does not exist") };
-          case (?profile) { profile };
-        };
-      } else {
-        Runtime.trap("Unauthorized: Can only view profiles of matched users or users with follow requests");
-      };
+    switch (profiles.get(user)) {
+      case (null) { Runtime.trap("Profile does not exist") };
+      case (?profile) { profile };
     };
+  };
+
+  // Get username by any principal (public for feed display)
+  public query ({ caller }) func getUsernameByPrincipal(user : Principal) : async ?Text {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can look up usernames");
+    };
+    principalToUsername.get(user);
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile.Profile) : async () {
@@ -700,9 +693,10 @@ actor {
 
     let hasRequest = hasFollowRequestBetween(caller, recipient);
     let matched = isMatched(caller, recipient) and isMatched(recipient, caller);
+    let oneWayFollow = areFollowing(caller, recipient) or areFollowing(recipient, caller);
 
-    if (not (hasRequest or matched)) {
-      Runtime.trap("Unauthorized: Can only message users with follow requests or matched users");
+    if (not (hasRequest or matched or oneWayFollow)) {
+      Runtime.trap("Unauthorized: Can only message users with a follow relationship");
     };
 
     let fullMessage = {
@@ -751,9 +745,10 @@ actor {
     if (caller != otherUser) {
       let hasRequest = hasFollowRequestBetween(caller, otherUser);
       let matched = isMatched(caller, otherUser) and isMatched(otherUser, caller);
+      let oneWayFollow = areFollowing(caller, otherUser) or areFollowing(otherUser, caller);
 
-      if (not (hasRequest or matched)) {
-        Runtime.trap("Unauthorized: Can only view conversations with users who have follow requests or matched users");
+      if (not (hasRequest or matched or oneWayFollow)) {
+        Runtime.trap("Unauthorized: Can only view conversations with users with a follow relationship");
       };
     };
 
@@ -854,8 +849,39 @@ actor {
 
     let result = List.empty<UserProfile.Profile>();
     for ((principal, profile) in profiles.entries()) {
-      if (profile.isActive and principal != caller) {
+      if (profile.displayName != "" and principal != caller) {
         result.add(profile);
+      };
+    };
+    result.toArray();
+  };
+
+  public type SearchResult = {
+    principal : Principal;
+    displayName : Text;
+    photoLink : Text;
+    username : Text;
+  };
+
+  public query ({ caller }) func searchUsers(searchQuery : Text) : async [SearchResult] {
+    let q = searchQuery.toLower();
+    let result = List.empty<SearchResult>();
+    for ((p, profile) in profiles.entries()) {
+      if (profile.displayName != "" and p != caller) {
+        let uname = switch (principalToUsername.get(p)) {
+          case (?u) { u };
+          case (null) { "" };
+        };
+        let nameMatch = profile.displayName.toLower().contains(#text q);
+        let usernameMatch = uname.toLower().contains(#text q);
+        if (nameMatch or usernameMatch) {
+          result.add({
+            principal = p;
+            displayName = profile.displayName;
+            photoLink = profile.photoLink;
+            username = uname;
+          });
+        };
       };
     };
     result.toArray();

@@ -747,3 +747,19 @@ export function useCommentOnReel() {
 
 // Re-export FollowRequestStatus for convenience
 export { FollowRequestStatus };
+
+export function useUsernameByPrincipal(principal: Principal | null) {
+  const { actor } = useActor();
+  return useQuery({
+    queryKey: ["usernameByPrincipal", principal?.toString()],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      return (actor as any).getUsernameByPrincipal(principal) as Promise<
+        string | null
+      >;
+    },
+    enabled: !!actor && !!principal,
+    staleTime: 300_000,
+    placeholderData: keepPreviousData,
+  });
+}

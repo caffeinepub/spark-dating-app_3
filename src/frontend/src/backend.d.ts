@@ -41,6 +41,12 @@ export interface Profile {
     gender: Gender;
     lastActive: bigint;
 }
+export interface SearchResult {
+    principal: Principal;
+    displayName: string;
+    photoLink: string;
+    username: string;
+}
 export interface VisibleInterest {
 }
 export interface InterestDisplayPrefs {
@@ -120,6 +126,7 @@ export interface backendInterface {
     getAllConversations(): Promise<Array<[Principal, Array<Message>]>>;
     getAllPosts(): Promise<Array<Post>>;
     getAllProfiles(): Promise<Array<Profile>>;
+    searchUsers(query: string): Promise<Array<SearchResult>>;
     getAllReels(): Promise<Array<Reel>>;
     getCallerUserProfile(): Promise<Profile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -142,6 +149,7 @@ export interface backendInterface {
     getUnreadNotificationCount(): Promise<bigint>;
     getUserCount(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<Profile>;
+    getUsernameByPrincipal(user: Principal): Promise<string | null>;
     getWhoILiked(): Promise<Array<Principal>>;
     getWhoLikedMe(): Promise<Array<Principal>>;
     hasCompletedOnboarding(): Promise<boolean>;
