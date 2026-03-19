@@ -16,6 +16,7 @@ import {
   useCreateReel,
   useCreateStory,
 } from "../hooks/useQueries";
+import MusicPicker, { type SelectedMusic } from "./MusicPicker";
 
 interface CreateContentModalProps {
   open: boolean;
@@ -104,6 +105,10 @@ export default function CreateContentModal({
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyPreview, setStoryPreview] = useState("");
 
+  // Music state
+  const [reelMusic, setReelMusic] = useState<SelectedMusic | null>(null);
+  const [storyMusic, setStoryMusic] = useState<SelectedMusic | null>(null);
+
   const createPost = useCreatePost();
   const createReel = useCreateReel();
   const createStory = useCreateStory();
@@ -146,6 +151,8 @@ export default function CreateContentModal({
     setReelPreview("");
     setReelCaption("");
     setReelFilter("none");
+    setReelMusic(null);
+    setStoryMusic(null);
     setStoryFile(null);
     setStoryPreview("");
     onClose();
@@ -223,7 +230,13 @@ export default function CreateContentModal({
       const blobId = reelPreview.startsWith("blob:")
         ? await blobToBase64(await fetch(reelPreview).then((r) => r.blob()))
         : await fileToBase64(reelFile);
-      await createReel.mutateAsync({ blobId, caption: reelCaption });
+      await createReel.mutateAsync({
+        blobId,
+        caption: reelCaption,
+        audioId: reelMusic?.audioId,
+        songName: reelMusic?.songName,
+        artistName: reelMusic?.artistName,
+      });
       toast.success("Reel shared! 🎬");
       handleClose();
     } catch {
@@ -238,7 +251,12 @@ export default function CreateContentModal({
     }
     try {
       const blobId = await fileToBase64(storyFile);
-      await createStory.mutateAsync({ blobId });
+      await createStory.mutateAsync({
+        blobId,
+        audioId: storyMusic?.audioId,
+        songName: storyMusic?.songName,
+        artistName: storyMusic?.artistName,
+      });
       toast.success("Story added! 🌟");
       handleClose();
     } catch {
@@ -523,6 +541,7 @@ export default function CreateContentModal({
 
             {!isCameraMode && (
               <>
+                <MusicPicker selected={reelMusic} onSelect={setReelMusic} />
                 <div className="space-y-1.5">
                   <Label>Caption</Label>
                   <Textarea
@@ -612,6 +631,7 @@ export default function CreateContentModal({
                 />
               </label>
             )}
+            <MusicPicker selected={storyMusic} onSelect={setStoryMusic} />
             <Button
               data-ocid="create.story.submit_button"
               onClick={submitStory}

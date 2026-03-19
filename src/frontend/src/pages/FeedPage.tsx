@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Comment, Post, Reel, Story } from "../backend.d";
 import CreateContentModal from "../components/CreateContentModal";
+import { MusicSticker } from "../components/MusicPicker";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useActiveStories,
@@ -363,6 +364,14 @@ function StoryViewer({
           />
         )}
       </div>
+      {story.songName?.[0] && story.artistName?.[0] && (
+        <div className="absolute bottom-8 left-4">
+          <MusicSticker
+            songName={story.songName[0]}
+            artistName={story.artistName[0]}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -675,6 +684,14 @@ function ReelCard({
             <Film className="w-6 h-6 text-white" />
           </div>
         </div>
+        {reel.songName?.[0] && reel.artistName?.[0] && (
+          <div className="absolute bottom-3 left-3">
+            <MusicSticker
+              songName={reel.songName[0]}
+              artistName={reel.artistName[0]}
+            />
+          </div>
+        )}
       </div>
 
       {/* Actions */}

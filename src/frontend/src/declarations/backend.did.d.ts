@@ -45,6 +45,10 @@ export interface Notification {
   'message' : string,
   'timestamp' : bigint,
 }
+export interface PasswordResetRequestInfo {
+  'username' : string,
+  'requestTime' : bigint,
+}
 export interface Post {
   'id' : bigint,
   'author' : Principal,
@@ -68,18 +72,30 @@ export interface Profile {
 }
 export interface Reel {
   'id' : bigint,
+  'songName' : [] | [string],
+  'audioId' : [] | [string],
   'author' : Principal,
   'likes' : Array<Principal>,
   'timestamp' : bigint,
   'caption' : string,
   'blobId' : string,
   'commentCount' : bigint,
+  'artistName' : [] | [string],
+}
+export interface SearchResult {
+  'photoLink' : string,
+  'principal' : Principal,
+  'username' : string,
+  'displayName' : string,
 }
 export interface Story {
   'id' : bigint,
+  'songName' : [] | [string],
+  'audioId' : [] | [string],
   'author' : Principal,
   'timestamp' : bigint,
   'blobId' : string,
+  'artistName' : [] | [string],
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -114,12 +130,19 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'acceptFollowRequest' : ActorMethod<[Principal], undefined>,
+  'adminResetPassword' : ActorMethod<[string, string], boolean>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'commentOnPost' : ActorMethod<[bigint, string], bigint>,
   'commentOnReel' : ActorMethod<[bigint, string], bigint>,
   'createPost' : ActorMethod<[string, string], bigint>,
-  'createReel' : ActorMethod<[string, string], bigint>,
-  'createStory' : ActorMethod<[string], bigint>,
+  'createReel' : ActorMethod<
+    [string, string, [] | [string], [] | [string], [] | [string]],
+    bigint
+  >,
+  'createStory' : ActorMethod<
+    [string, [] | [string], [] | [string], [] | [string]],
+    bigint
+  >,
   'declineFollowRequest' : ActorMethod<[Principal], undefined>,
   'deleteExpiredStories' : ActorMethod<[], undefined>,
   'deletePost' : ActorMethod<[bigint], undefined>,
@@ -146,13 +169,19 @@ export interface _SERVICE {
   'getMyUsername' : ActorMethod<[], [] | [string]>,
   'getNotifications' : ActorMethod<[], Array<Notification>>,
   'getPendingFollowRequests' : ActorMethod<[], Array<Principal>>,
+  'getPendingPasswordResetRequests' : ActorMethod<
+    [],
+    Array<PasswordResetRequestInfo>
+  >,
   'getPostComments' : ActorMethod<[bigint], Array<Comment>>,
   'getPostsByUser' : ActorMethod<[Principal], Array<Post>>,
   'getReelComments' : ActorMethod<[bigint], Array<Comment>>,
   'getReelsByUser' : ActorMethod<[Principal], Array<Reel>>,
+  'getSecurityQuestion' : ActorMethod<[string], [] | [string]>,
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUserCount' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], Profile>,
+  'getUsernameByPrincipal' : ActorMethod<[Principal], [] | [string]>,
   'getWhoILiked' : ActorMethod<[], Array<Principal>>,
   'getWhoLikedMe' : ActorMethod<[], Array<Principal>>,
   'hasCompletedOnboarding' : ActorMethod<[], boolean>,
@@ -172,16 +201,21 @@ export interface _SERVICE {
       { 'alreadyRegistered' : null } |
       { 'usernameTaken' : null }
   >,
+  'requestAdminPasswordReset' : ActorMethod<[string], undefined>,
+  'resetPasswordWithOtp' : ActorMethod<[string, string, string], boolean>,
   'saveCallerUserProfile' : ActorMethod<[Profile], undefined>,
   'saveCallerUserProfileInfo' : ActorMethod<[InterestDisplayPrefs], undefined>,
+  'searchUsers' : ActorMethod<[string], Array<SearchResult>>,
   'sendFollowRequest' : ActorMethod<[Principal], undefined>,
   'sendMessage' : ActorMethod<[Principal, string], undefined>,
   'setOffline' : ActorMethod<[], undefined>,
   'setOnline' : ActorMethod<[], undefined>,
+  'setSecurityQuestion' : ActorMethod<[string, string], undefined>,
   'unfollowUser' : ActorMethod<[Principal], undefined>,
   'unlikePost' : ActorMethod<[bigint], undefined>,
   'unlikeReel' : ActorMethod<[bigint], undefined>,
   'unlikeUser' : ActorMethod<[Principal], undefined>,
+  'verifySecurityAnswer' : ActorMethod<[string, string], [] | [string]>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

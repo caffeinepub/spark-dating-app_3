@@ -13,6 +13,7 @@ import Layout from "./components/Layout";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import AdminPage from "./pages/AdminPage";
+import CameraPage from "./pages/CameraPage";
 import ChatPage from "./pages/ChatPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import FeedPage from "./pages/FeedPage";
@@ -268,6 +269,12 @@ const adminRoute = createRoute({
   component: AdminPage,
 });
 
+const cameraRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/camera",
+  component: CameraPage,
+});
+
 const routeTree = rootRoute.addChildren([
   landingRoute,
   onboardingRoute,
@@ -282,6 +289,7 @@ const routeTree = rootRoute.addChildren([
     userProfileRoute,
     notificationsRoute,
     adminRoute,
+    cameraRoute,
   ]),
 ]);
 

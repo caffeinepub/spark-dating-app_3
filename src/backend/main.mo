@@ -13,6 +13,8 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
 
+
+
 actor {
   // State
   let accessControlState = AccessControl.initState();
@@ -108,6 +110,7 @@ actor {
     commentCount : Nat;
   };
 
+  // Modified ReelData and Story types to include music fields
   type ReelData = {
     id : Nat;
     author : Principal;
@@ -115,6 +118,19 @@ actor {
     caption : Text;
     timestamp : Int;
     commentCount : Nat;
+    audioId : ?Text;
+    songName : ?Text;
+    artistName : ?Text;
+  };
+
+  type Story = {
+    id : Nat;
+    author : Principal;
+    blobId : Text;
+    timestamp : Int;
+    audioId : ?Text;
+    songName : ?Text;
+    artistName : ?Text;
   };
 
   // Public types with likes array (computed on read)
@@ -136,13 +152,9 @@ actor {
     timestamp : Int;
     likes : [Principal];
     commentCount : Nat;
-  };
-
-  type Story = {
-    id : Nat;
-    author : Principal;
-    blobId : Text;
-    timestamp : Int;
+    audioId : ?Text;
+    songName : ?Text;
+    artistName : ?Text;
   };
 
   type Comment = {
@@ -227,6 +239,9 @@ actor {
       timestamp = rd.timestamp;
       likes = reelLikes;
       commentCount = rd.commentCount;
+      audioId = rd.audioId;
+      songName = rd.songName;
+      artistName = rd.artistName;
     };
   };
 
@@ -866,24 +881,53 @@ actor {
   public query ({ caller }) func searchUsers(searchQuery : Text) : async [SearchResult] {
     let q = searchQuery.toLower();
     let result = List.empty<SearchResult>();
+    let seen = Map.empty<Principal, Bool>();
+
+    // Search profiles by displayName and username
     for ((p, profile) in profiles.entries()) {
-      if (profile.displayName != "" and p != caller) {
+      if (p != caller) {
         let uname = switch (principalToUsername.get(p)) {
           case (?u) { u };
           case (null) { "" };
         };
-        let nameMatch = profile.displayName.toLower().contains(#text q);
-        let usernameMatch = uname.toLower().contains(#text q);
+        let nameMatch = q == "" or profile.displayName.toLower().contains(#text q);
+        let usernameMatch = q == "" or uname.toLower().contains(#text q);
         if (nameMatch or usernameMatch) {
+          seen.add(p, true);
           result.add({
             principal = p;
-            displayName = profile.displayName;
+            displayName = if (profile.displayName != "") profile.displayName else uname;
             photoLink = profile.photoLink;
             username = uname;
           });
         };
       };
     };
+
+    // Also search principalToUsername for username matches (handles users who registered but haven't saved profile)
+    for ((p, uname) in principalToUsername.entries()) {
+      if (p != caller) {
+        switch (seen.get(p)) {
+          case (?_) { }; // already included
+          case (null) {
+            let usernameMatch = q == "" or uname.toLower().contains(#text q);
+            if (usernameMatch) {
+              let (displayName, photoLink) = switch (profiles.get(p)) {
+                case (?profile) { (profile.displayName, profile.photoLink) };
+                case (null) { (uname, "") };
+              };
+              result.add({
+                principal = p;
+                displayName = if (displayName != "") displayName else uname;
+                photoLink = photoLink;
+                username = uname;
+              });
+            };
+          };
+        };
+      };
+    };
+
     result.toArray();
   };
 
@@ -960,7 +1004,14 @@ actor {
     };
   };
 
-  public shared ({ caller }) func registerWithCredentials(username : Text, passwordHash : Text) : async { #ok; #usernameTaken; #alreadyRegistered } {
+  public shared ({ caller }) func registerWithCredentials(
+    username : Text,
+    passwordHash : Text,
+  ) : async {
+    #ok;
+    #usernameTaken;
+    #alreadyRegistered;
+  } {
     switch (principalToUsername.get(caller)) {
       case (?_) { return #alreadyRegistered };
       case (null) {};
@@ -1160,7 +1211,13 @@ actor {
 
   // ==================== REELS ====================
 
-  public shared ({ caller }) func createReel(blobId : Text, caption : Text) : async Nat {
+  public shared ({ caller }) func createReel(
+    blobId : Text,
+    caption : Text,
+    audioId : ?Text,
+    songName : ?Text,
+    artistName : ?Text,
+  ) : async Nat {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can create reels");
     };
@@ -1173,6 +1230,9 @@ actor {
       caption;
       timestamp = Time.now();
       commentCount = 0;
+      audioId; // Directly assign optional values (can be ?null)
+      songName;
+      artistName;
     };
     reelsData.add(reelId, newReel);
     reelId;
@@ -1297,7 +1357,12 @@ actor {
 
   // ==================== STORIES ====================
 
-  public shared ({ caller }) func createStory(blobId : Text) : async Nat {
+  public shared ({ caller }) func createStory(
+    blobId : Text,
+    audioId : ?Text,
+    songName : ?Text,
+    artistName : ?Text,
+  ) : async Nat {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can create stories");
     };
@@ -1308,6 +1373,9 @@ actor {
       author = caller;
       blobId;
       timestamp = Time.now();
+      audioId;
+      songName;
+      artistName;
     };
     stories.add(storyId, newStory);
     storyId;

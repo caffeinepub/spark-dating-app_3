@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import {
   Bell,
+  Camera,
   Compass,
   Heart,
   Home,
@@ -21,6 +22,8 @@ import { useEffect } from "react";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useUnreadCount } from "../hooks/useQueries";
+
+const LOGO = "/assets/uploads/IMG-20260315-WA0015-1.jpg";
 
 const navItems = [
   { to: "/feed", icon: Home, label: "Feed", ocid: "nav.feed_link" },
@@ -92,12 +95,14 @@ function MobileNavItem({
   label,
   ocid,
   unread,
+  special,
 }: {
   to: string;
   icon: React.ElementType;
   label: string;
   ocid: string;
   unread?: number;
+  special?: boolean;
 }) {
   const routerState = useRouterState();
   const isActive =
@@ -108,19 +113,27 @@ function MobileNavItem({
       to={to}
       data-ocid={ocid}
       className={cn(
-        "relative flex-1 flex flex-col items-center gap-0.5 py-3 text-xs font-medium transition-all",
-        isActive ? "text-primary" : "text-muted-foreground",
+        "relative flex-1 flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-all",
+        special ? "" : isActive ? "text-primary" : "text-muted-foreground",
       )}
     >
-      <div className="relative">
-        <Icon className="w-5 h-5" />
-        {unread !== undefined && unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full gradient-primary text-white text-[9px] flex items-center justify-center">
-            {unread > 9 ? "9" : unread}
-          </span>
-        )}
-      </div>
-      <span>{label}</span>
+      {special ? (
+        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center shadow-glow -mt-4 mb-0.5 border-2 border-background">
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+      ) : (
+        <div className="relative">
+          <Icon className="w-5 h-5" />
+          {unread !== undefined && unread > 0 && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full gradient-primary text-white text-[9px] flex items-center justify-center">
+              {unread > 9 ? "9" : unread}
+            </span>
+          )}
+        </div>
+      )}
+      <span className={special ? "text-primary font-semibold" : ""}>
+        {label}
+      </span>
     </Link>
   );
 }
@@ -149,13 +162,17 @@ export default function Layout() {
 
   const unread = unreadCount ? Number(unreadCount) : 0;
 
+  // Mobile nav: split around camera button in center
+  const mobileNavLeft = navItems.slice(0, 3);
+  const mobileNavRight = navItems.slice(3, 6);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Desktop top nav */}
       <header className="hidden md:flex sticky top-0 z-50 glass border-b border-border h-16 items-center px-6 justify-between">
         <Link to="/feed" className="flex items-center gap-2">
           <img
-            src="/assets/generated/nibba-nibbi-logo-transparent.png"
+            src={LOGO}
             className="h-8 w-auto object-contain"
             alt="Nibba Nibbi"
           />
@@ -174,6 +191,13 @@ export default function Layout() {
               unread={to === "/notifications" ? unread : undefined}
             />
           ))}
+          {/* Camera link in desktop nav */}
+          <NavItem
+            to="/camera"
+            icon={Camera}
+            label="Camera"
+            ocid="nav.camera_link"
+          />
           <NavItem
             to="/admin"
             icon={Shield}
@@ -198,8 +222,9 @@ export default function Layout() {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 md:hidden glass border-t border-border z-50 flex">
-        {navItems.map(({ to, icon, label, ocid }) => (
+      <nav className="fixed bottom-0 left-0 right-0 md:hidden glass border-t border-border z-50 flex items-end">
+        {/* Left items */}
+        {mobileNavLeft.map(({ to, icon, label, ocid }) => (
           <MobileNavItem
             key={to}
             to={to}
@@ -209,7 +234,29 @@ export default function Layout() {
             unread={to === "/notifications" ? unread : undefined}
           />
         ))}
-        {/* Logout button */}
+
+        {/* Center Camera button */}
+        <MobileNavItem
+          to="/camera"
+          icon={Camera}
+          label="Camera"
+          ocid="nav.mobile.camera_link"
+          special
+        />
+
+        {/* Right items */}
+        {mobileNavRight.map(({ to, icon, label, ocid }) => (
+          <MobileNavItem
+            key={to}
+            to={to}
+            icon={icon}
+            label={label}
+            ocid={ocid}
+            unread={to === "/notifications" ? unread : undefined}
+          />
+        ))}
+
+        {/* Logout */}
         <button
           type="button"
           data-ocid="nav.mobile.logout.button"

@@ -13,6 +13,8 @@ import {
 import { useEffect } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
+const LOGO = "/assets/uploads/IMG-20260315-WA0015-1.jpg";
+
 const features = [
   {
     icon: Heart,
@@ -104,7 +106,6 @@ export default function LandingPage({
   const navigate = useNavigate();
   const isLoggingIn = loginStatus === "logging-in";
 
-  // If already has identity, redirect to discover
   useEffect(() => {
     if (identity) {
       navigate({ to: "/discover" });
@@ -114,21 +115,19 @@ export default function LandingPage({
   const handleLogin = async (tab: "signin" | "signup" = "signup") => {
     onTabChange?.(tab);
     await login();
-    // After login, the parent (AppRoot/AuthGate) will detect identity and show AuthModal
     onLoginSuccess?.();
   };
 
-  // Brief guard while redirect happens
   if (identity) return null;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Navbar */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-white/20 shadow-sm">
         <div className="container mx-auto flex items-center justify-between h-16 px-6">
           <div className="flex items-center gap-2">
             <img
-              src="/assets/generated/nibba-nibbi-logo-transparent.png"
+              src={LOGO}
               className="h-10 w-auto object-contain"
               alt="Nibba Nibbi"
             />
@@ -142,7 +141,7 @@ export default function LandingPage({
               onClick={() => handleLogin("signin")}
               disabled={isLoggingIn}
               data-ocid="landing.sign_in_button"
-              className="text-foreground hover:text-primary"
+              className="text-gray-700 hover:text-purple-700"
             >
               Sign In
             </Button>
@@ -150,7 +149,7 @@ export default function LandingPage({
               onClick={() => handleLogin("signup")}
               disabled={isLoggingIn}
               data-ocid="landing.get_started_button"
-              className="gradient-primary text-white border-0 shadow-glow hover:shadow-glow-lg transition-all"
+              className="gradient-primary text-white border-0 rounded-full px-6 shadow-glow hover:shadow-glow-lg transition-all"
             >
               {isLoggingIn ? "Connecting..." : "Get Started"}
             </Button>
@@ -159,72 +158,74 @@ export default function LandingPage({
       </header>
 
       {/* ── Hero ── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center scale-105"
-          style={{
-            backgroundImage:
-              "url('/assets/generated/spark-hero-bg.dim_1440x900.jpg')",
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-black/50" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden hero-bg">
+        {/* Floating profile cards left */}
         <div className="absolute left-6 xl:left-16 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-5 z-10">
           {sampleProfiles.slice(0, 2).map((p) => (
             <HeroProfileCard key={p.name} profile={p} />
           ))}
         </div>
+        {/* Floating profile cards right */}
         <div className="absolute right-6 xl:right-16 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-5 z-10">
           {sampleProfiles.slice(2).map((p) => (
             <HeroProfileCard key={p.name} profile={p} />
           ))}
         </div>
 
-        <div className="relative z-10 text-center px-6 max-w-xl mx-auto">
+        <div className="relative z-10 text-center px-6 max-w-lg mx-auto">
+          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-dark text-white/90 text-sm font-medium mb-8 border border-white/15">
-            <span className="w-2 h-2 rounded-full gradient-primary inline-block" />
+            <span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />
             The modern dating experience
           </div>
-          <div className="flex justify-center mb-4">
+
+          {/* Center logo */}
+          <div className="flex justify-center mb-6">
             <img
-              src="/assets/generated/nibba-nibbi-logo-transparent.png"
+              src={LOGO}
               className="h-24 md:h-32 w-auto object-contain drop-shadow-2xl"
               alt="Nibba Nibbi"
             />
           </div>
+
+          {/* Heading */}
           <h1 className="font-display text-6xl md:text-8xl font-bold text-white mb-3 leading-[0.9] tracking-tight">
             Nibba Nibbi
           </h1>
+
+          {/* Subtitle */}
           <p className="text-2xl md:text-3xl font-display italic text-white/80 mb-6 leading-snug">
             Find your perfect match.
           </p>
+
+          {/* Body */}
           <p className="text-white/60 text-base md:text-lg mb-10 max-w-sm mx-auto leading-relaxed">
             Connect with extraordinary people and find your true love.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          {/* CTAs */}
+          <div className="flex flex-col gap-3 max-w-xs mx-auto w-full">
             <Button
               size="lg"
               onClick={() => handleLogin("signup")}
               disabled={isLoggingIn}
               data-ocid="landing.hero.get_started_button"
-              className="gradient-primary text-white border-0 shadow-glow-lg text-base px-10 py-6 rounded-full hover:scale-105 hover:shadow-glow-lg transition-all font-semibold"
+              className="gradient-primary text-white border-0 shadow-glow-lg text-base py-6 rounded-full w-full hover:scale-105 transition-all font-semibold"
             >
               {isLoggingIn ? "Connecting..." : "✨ Start for free"}
             </Button>
             <Button
               size="lg"
-              variant="outline"
               onClick={() => handleLogin("signin")}
               disabled={isLoggingIn}
               data-ocid="landing.hero.sign_in_button"
-              className="bg-white/10 border-white/25 text-white hover:bg-white/20 text-base px-10 py-6 rounded-full backdrop-blur-sm transition-all"
+              className="glass-dark border border-white/20 text-white hover:bg-white/10 text-base py-6 rounded-full w-full transition-all"
             >
               Sign in
             </Button>
           </div>
 
+          {/* Trust tagline */}
           <p className="text-white/40 text-xs mt-8 tracking-wide">
             Trusted by 12,000+ people finding real connections
           </p>
@@ -242,7 +243,7 @@ export default function LandingPage({
             <p className="text-primary text-sm font-semibold tracking-widest uppercase mb-3">
               Why Nibba Nibbi
             </p>
-            <h2 className="font-display text-4xl md:text-6xl max-w-lg leading-tight">
+            <h2 className="font-display text-4xl md:text-6xl max-w-lg leading-tight text-foreground">
               Everything you need to find{" "}
               <span className="gradient-text italic">real love.</span>
             </h2>
@@ -260,7 +261,9 @@ export default function LandingPage({
                 </span>
                 <div className="flex items-center gap-2.5 mb-3">
                   <Icon className="w-5 h-5 text-primary shrink-0" />
-                  <h3 className="font-semibold text-base">{title}</h3>
+                  <h3 className="font-semibold text-base text-foreground">
+                    {title}
+                  </h3>
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   {desc}
@@ -277,7 +280,7 @@ export default function LandingPage({
           <p className="text-primary text-sm font-semibold tracking-widest uppercase mb-3">
             Simple & Secure
           </p>
-          <h2 className="font-display text-3xl md:text-5xl font-bold mb-12">
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-12 text-foreground">
             Get started in minutes
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -302,7 +305,9 @@ export default function LandingPage({
                 <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-lg shadow-glow">
                   {step}
                 </div>
-                <h3 className="font-semibold text-base">{title}</h3>
+                <h3 className="font-semibold text-base text-foreground">
+                  {title}
+                </h3>
                 <p className="text-muted-foreground text-sm">{desc}</p>
               </div>
             ))}
@@ -391,7 +396,7 @@ function HeroProfileCard({ profile }: { profile: HeroProfile }) {
           {profile.matched ? "12" : "7"}
         </div>
       </div>
-      <div className="p-2.5 bg-white">
+      <div className="p-2.5 bg-card">
         <div className="flex items-baseline justify-between mb-1.5">
           <p className="font-semibold text-sm text-foreground leading-none">
             {profile.name}
@@ -402,7 +407,7 @@ function HeroProfileCard({ profile }: { profile: HeroProfile }) {
           {profile.interests.map((interest) => (
             <span
               key={interest}
-              className="text-[9px] px-1.5 py-0.5 rounded-full gradient-soft text-primary/80 font-medium"
+              className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary font-medium"
             >
               {interest}
             </span>

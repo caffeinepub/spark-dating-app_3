@@ -585,9 +585,24 @@ export function useCreateReel() {
     mutationFn: async ({
       blobId,
       caption,
-    }: { blobId: string; caption: string }) => {
+      audioId,
+      songName,
+      artistName,
+    }: {
+      blobId: string;
+      caption: string;
+      audioId?: string;
+      songName?: string;
+      artistName?: string;
+    }) => {
       if (!actor) throw new Error("Not connected");
-      return (actor as any).createReel(blobId, caption) as Promise<bigint>;
+      return (actor as any).createReel(
+        blobId,
+        caption,
+        audioId ? [audioId] : [],
+        songName ? [songName] : [],
+        artistName ? [artistName] : [],
+      ) as Promise<bigint>;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["allReels"] });
@@ -600,9 +615,24 @@ export function useCreateStory() {
   const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ blobId }: { blobId: string }) => {
+    mutationFn: async ({
+      blobId,
+      audioId,
+      songName,
+      artistName,
+    }: {
+      blobId: string;
+      audioId?: string;
+      songName?: string;
+      artistName?: string;
+    }) => {
       if (!actor) throw new Error("Not connected");
-      return (actor as any).createStory(blobId) as Promise<bigint>;
+      return (actor as any).createStory(
+        blobId,
+        audioId ? [audioId] : [],
+        songName ? [songName] : [],
+        artistName ? [artistName] : [],
+      ) as Promise<bigint>;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["activeStories"] });

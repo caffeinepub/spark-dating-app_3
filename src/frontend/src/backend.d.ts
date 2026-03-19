@@ -9,12 +9,21 @@ export interface None {
 export type Option<T> = Some<T> | None;
 export interface Reel {
     id: bigint;
+    songName?: string;
+    audioId?: string;
     author: Principal;
     likes: Array<Principal>;
     timestamp: bigint;
     caption: string;
     blobId: string;
     commentCount: bigint;
+    artistName?: string;
+}
+export interface SearchResult {
+    photoLink: string;
+    principal: Principal;
+    username: string;
+    displayName: string;
 }
 export interface Comment {
     id: bigint;
@@ -25,9 +34,12 @@ export interface Comment {
 }
 export interface Story {
     id: bigint;
+    songName?: string;
+    audioId?: string;
     author: Principal;
     timestamp: bigint;
     blobId: string;
+    artistName?: string;
 }
 export interface Profile {
     id: bigint;
@@ -41,11 +53,9 @@ export interface Profile {
     gender: Gender;
     lastActive: bigint;
 }
-export interface SearchResult {
-    principal: Principal;
-    displayName: string;
-    photoLink: string;
+export interface PasswordResetRequestInfo {
     username: string;
+    requestTime: bigint;
 }
 export interface VisibleInterest {
 }
@@ -83,10 +93,6 @@ export interface Interest {
     id: bigint;
     name: string;
 }
-export interface PasswordResetRequestInfo {
-    username: string;
-    requestTime: bigint;
-}
 export enum FollowRequestStatus {
     pending = "pending",
     accepted = "accepted",
@@ -114,8 +120,8 @@ export interface backendInterface {
     commentOnPost(postId: bigint, text: string): Promise<bigint>;
     commentOnReel(reelId: bigint, text: string): Promise<bigint>;
     createPost(blobId: string, caption: string): Promise<bigint>;
-    createReel(blobId: string, caption: string): Promise<bigint>;
-    createStory(blobId: string): Promise<bigint>;
+    createReel(blobId: string, caption: string, audioId: string | null, songName: string | null, artistName: string | null): Promise<bigint>;
+    createStory(blobId: string, audioId: string | null, songName: string | null, artistName: string | null): Promise<bigint>;
     declineFollowRequest(requester: Principal): Promise<void>;
     deleteExpiredStories(): Promise<void>;
     deletePost(postId: bigint): Promise<void>;
@@ -126,7 +132,6 @@ export interface backendInterface {
     getAllConversations(): Promise<Array<[Principal, Array<Message>]>>;
     getAllPosts(): Promise<Array<Post>>;
     getAllProfiles(): Promise<Array<Profile>>;
-    searchUsers(query: string): Promise<Array<SearchResult>>;
     getAllReels(): Promise<Array<Reel>>;
     getCallerUserProfile(): Promise<Profile | null>;
     getCallerUserRole(): Promise<UserRole>;
@@ -168,6 +173,7 @@ export interface backendInterface {
     resetPasswordWithOtp(username: string, otp: string, newPasswordHash: string): Promise<boolean>;
     saveCallerUserProfile(profile: Profile): Promise<void>;
     saveCallerUserProfileInfo(profileInfo: InterestDisplayPrefs): Promise<void>;
+    searchUsers(searchQuery: string): Promise<Array<SearchResult>>;
     sendFollowRequest(targetUser: Principal): Promise<void>;
     sendMessage(recipient: Principal, content: string): Promise<void>;
     setOffline(): Promise<void>;
