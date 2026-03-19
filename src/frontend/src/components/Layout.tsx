@@ -23,7 +23,7 @@ import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useUnreadCount } from "../hooks/useQueries";
 
-const LOGO = "/assets/uploads/IMG-20260315-WA0015-1.jpg";
+const LOGO = "/assets/generated/nibba-nibbi-logo-transparent.png";
 
 const navItems = [
   { to: "/feed", icon: Home, label: "Feed", ocid: "nav.feed_link" },

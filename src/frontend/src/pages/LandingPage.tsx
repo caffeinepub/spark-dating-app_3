@@ -13,7 +13,7 @@ import {
 import { useEffect } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
-const LOGO = "/assets/uploads/IMG-20260315-WA0015-1.jpg";
+const LOGO = "/assets/generated/nibba-nibbi-logo-transparent.png";
 
 const features = [
   {

@@ -158,7 +158,7 @@ export default function OnboardingPage() {
       {/* Brand mark */}
       <div className="flex items-center gap-2 mb-10">
         <img
-          src="/assets/generated/nibba-nibbi-logo-transparent.dim_400x400.png"
+          src="/assets/generated/nibba-nibbi-logo-transparent.png"
           className="h-10 w-auto object-contain"
           alt="Nibba Nibbi"
         />
