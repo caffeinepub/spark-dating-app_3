@@ -12,9 +12,10 @@ import Nat "mo:core/Nat";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
+import Migration "migration";
 
-
-
+// Use migration function for upgrades
+(with migration = Migration.run)
 actor {
   // State
   let accessControlState = AccessControl.initState();
@@ -98,6 +99,7 @@ actor {
     content : Text;
     timestamp : Int;
     isRead : Bool;
+    isDeletedForEveryone : Bool;
   };
 
   // Internal post/reel types without embedded likes
@@ -701,7 +703,10 @@ actor {
 
   // ==================== MESSAGING ====================
 
-  public shared ({ caller }) func sendMessage(recipient : Principal, content : Text) : async () {
+  public shared ({ caller }) func sendMessage(
+    recipient : Principal,
+    content : Text,
+  ) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can send messages");
     };
@@ -714,12 +719,13 @@ actor {
       Runtime.trap("Unauthorized: Can only message users with a follow relationship");
     };
 
-    let fullMessage = {
+    let fullMessage : Message = {
       from = caller;
       to = recipient;
       content;
       timestamp = Time.now();
       isRead = false;
+      isDeletedForEveryone = false;
     };
 
     let recipients = [caller, recipient];
@@ -752,7 +758,54 @@ actor {
     };
   };
 
-  public query ({ caller }) func getConversationsWithUser(otherUser : Principal) : async [Message] {
+  public shared ({ caller }) func deleteMessageForEveryone(
+    recipient : Principal,
+    timestamp : Int,
+  ) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete messages");
+    };
+
+    var foundInCaller = false;
+    var foundInRecipient = false;
+
+    let updateMessages = func(user : Principal, otherUser : Principal) : Bool {
+      switch (messages.get(user)) {
+        case (null) { false };
+        case (?messageList) {
+          var found = false;
+          let updated = messageList.map<Message, Message>(
+            func(msg) {
+              if (
+                msg.timestamp == timestamp and msg.from == caller and msg.to == otherUser and not msg.isDeletedForEveryone
+              ) {
+                found := true;
+                {
+                  msg with
+                  isDeletedForEveryone = true;
+                };
+              } else {
+                msg;
+              };
+            }
+          );
+          messages.add(user, updated);
+          found;
+        };
+      };
+    };
+
+    foundInCaller := updateMessages(caller, recipient);
+    foundInRecipient := updateMessages(recipient, caller);
+
+    if (not foundInCaller and not foundInRecipient) {
+      Runtime.trap("Message not found or already deleted");
+    };
+  };
+
+  public query ({ caller }) func getConversationsWithUser(
+    otherUser : Principal,
+  ) : async [Message] {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can view conversations");
     };

@@ -300,6 +300,24 @@ export function useSendMessage() {
   });
 }
 
+export function useDeleteMessageForEveryone() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recipient,
+      timestamp,
+    }: { recipient: Principal; timestamp: bigint }) => {
+      if (!actor) throw new Error("Not connected");
+      return actor.deleteMessageForEveryone(recipient, timestamp);
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["chat", vars.recipient.toString()] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
 export function useLikeUser() {
   const { actor } = useActor();
   const qc = useQueryClient();

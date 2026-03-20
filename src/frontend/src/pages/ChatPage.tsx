@@ -8,18 +8,26 @@ import {
   ArrowLeft,
   Camera,
   Image,
+  Loader2,
   Mic,
   Music,
   Paperclip,
   Send,
+  Trash2,
   Video,
   X,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCamera } from "../camera/useCamera";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useChat, useSendMessage, useUserProfile } from "../hooks/useQueries";
+import {
+  useChat,
+  useDeleteMessageForEveryone,
+  useSendMessage,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 const MAX_IMAGE_SIZE = 1 * 1024 * 1024; // 1 MB
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -42,11 +50,114 @@ function encodeMedia(
   return `${prefix}${dataUrl}`;
 }
 
+// ── Context Menu ─────────────────────────────────────────────────────────────
+
+interface ContextMenuState {
+  msgTimestamp: bigint;
+  x: number;
+  y: number;
+}
+
+function MessageContextMenu({
+  state,
+  onDelete,
+  onClose,
+  isDeleting,
+}: {
+  state: ContextMenuState;
+  onDelete: () => void;
+  onClose: () => void;
+  isDeleting: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [onClose]);
+
+  // Clamp to viewport
+  const MENU_W = 180;
+  const MENU_H = 52;
+  const left = Math.min(state.x, window.innerWidth - MENU_W - 8);
+  const top = Math.min(state.y, window.innerHeight - MENU_H - 8);
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.12 }}
+      style={{ position: "fixed", left, top, zIndex: 9999, width: MENU_W }}
+      className="rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+      data-ocid="chat.dropdown_menu"
+    >
+      <div className="bg-[#1a0a2e]/95 backdrop-blur-xl">
+        <button
+          type="button"
+          disabled={isDeleting}
+          onClick={onDelete}
+          data-ocid="chat.delete_button"
+          className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-60"
+        >
+          {isDeleting ? (
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          ) : (
+            <Trash2 className="w-4 h-4 shrink-0" />
+          )}
+          <span>{isDeleting ? "Deleting..." : "Delete for Everyone"}</span>
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Message Bubble ─────────────────────────────────────────────────────────
+
 function MessageBubble({
   content,
   isMine,
   timestamp,
-}: { content: string; isMine: boolean; timestamp?: bigint }) {
+  isDeletedForEveryone,
+  onLongPress,
+  onRightClick,
+}: {
+  content: string;
+  isMine: boolean;
+  timestamp?: bigint;
+  isDeletedForEveryone?: boolean;
+  onLongPress?: (e: React.TouchEvent) => void;
+  onRightClick?: (e: React.MouseEvent) => void;
+}) {
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+
+  // Deleted message rendering
+  if (isDeletedForEveryone) {
+    if (isMine) {
+      // Sender: show nothing
+      return null;
+    }
+    // Receiver: subtle placeholder
+    return (
+      <div className="flex items-center gap-1.5 text-muted-foreground/60 italic text-sm select-none">
+        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+        <span>This message was deleted</span>
+      </div>
+    );
+  }
+
   const renderContent = () => {
     if (content.startsWith("[IMAGE]")) {
       const src = content.slice(7);
@@ -80,10 +191,37 @@ function MessageBubble({
     content.startsWith("[VIDEO]") ||
     content.startsWith("[AUDIO]");
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isMine || !onLongPress) return;
+    didLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true;
+      onLongPress(e);
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!isMine || !onRightClick) return;
+    e.preventDefault();
+    onRightClick(e);
+  };
+
   return (
     <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      onContextMenu={handleContextMenu}
       className={cn(
-        "max-w-[70%] rounded-2xl text-sm shadow-xs",
+        "max-w-[70%] rounded-2xl text-sm shadow-xs select-none",
+        isMine && "cursor-pointer",
         isMedia
           ? isMine
             ? "rounded-br-sm overflow-hidden"
@@ -110,6 +248,8 @@ function MessageBubble({
   );
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function ChatPage() {
   const { userId } = useParams({ from: "/layout/messages/$userId" });
   const navigate = useNavigate();
@@ -124,6 +264,8 @@ export default function ChatPage() {
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +283,7 @@ export default function ChatPage() {
   const { data: messages, isLoading } = useChat(otherPrincipal);
   const { data: profile } = useUserProfile(otherPrincipal);
   const sendMessage = useSendMessage();
+  const deleteMessage = useDeleteMessageForEveryone();
 
   const myPrincipal = identity?.getPrincipal()?.toString() ?? "";
 
@@ -239,8 +382,45 @@ export default function ChatPage() {
   const formatVoiceTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+  const openContextMenu = useCallback(
+    (timestamp: bigint, x: number, y: number) => {
+      setContextMenu({ msgTimestamp: timestamp, x, y });
+    },
+    [],
+  );
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleDeleteForEveryone = useCallback(() => {
+    if (!contextMenu || !otherPrincipal) return;
+    deleteMessage.mutate(
+      { recipient: otherPrincipal, timestamp: contextMenu.msgTimestamp },
+      {
+        onSuccess: () => {
+          toast.success("Message deleted");
+          setContextMenu(null);
+        },
+        onError: () => {
+          toast.error("Failed to delete message");
+        },
+      },
+    );
+  }, [contextMenu, otherPrincipal, deleteMessage]);
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)]">
+      {/* Context menu portal */}
+      <AnimatePresence>
+        {contextMenu && (
+          <MessageContextMenu
+            state={contextMenu}
+            onDelete={handleDeleteForEveryone}
+            onClose={closeContextMenu}
+            isDeleting={deleteMessage.isPending}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="glass border-b border-border px-4 py-3 flex items-center gap-3">
         <Button
@@ -352,6 +532,18 @@ export default function ChatPage() {
                   content={msg.content}
                   isMine={isMine}
                   timestamp={msg.timestamp}
+                  isDeletedForEveryone={msg.isDeletedForEveryone}
+                  onLongPress={(e) => {
+                    const touch = e.touches[0];
+                    openContextMenu(
+                      msg.timestamp,
+                      touch?.clientX ?? 0,
+                      touch?.clientY ?? 0,
+                    );
+                  }}
+                  onRightClick={(e) => {
+                    openContextMenu(msg.timestamp, e.clientX, e.clientY);
+                  }}
                 />
               </div>
             );

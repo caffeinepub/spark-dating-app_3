@@ -176,6 +176,7 @@ export interface Message {
     content: string;
     from: Principal;
     isRead: boolean;
+    isDeletedForEveryone: boolean;
     timestamp: bigint;
 }
 export interface Interest {
@@ -224,6 +225,7 @@ export interface backendInterface {
     createStory(blobId: string, audioId: string | null, songName: string | null, artistName: string | null): Promise<bigint>;
     declineFollowRequest(requester: Principal): Promise<void>;
     deleteExpiredStories(): Promise<void>;
+    deleteMessageForEveryone(recipient: Principal, timestamp: bigint): Promise<void>;
     deletePost(postId: bigint): Promise<void>;
     deleteReel(reelId: bigint): Promise<void>;
     fillSampleData(): Promise<void>;
@@ -523,6 +525,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteExpiredStories();
+            return result;
+        }
+    }
+    async deleteMessageForEveryone(arg0: Principal, arg1: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteMessageForEveryone(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteMessageForEveryone(arg0, arg1);
             return result;
         }
     }

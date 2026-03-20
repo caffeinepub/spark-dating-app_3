@@ -87,6 +87,7 @@ export interface Message {
     content: string;
     from: Principal;
     isRead: boolean;
+    isDeletedForEveryone: boolean;
     timestamp: bigint;
 }
 export interface Interest {
@@ -124,6 +125,7 @@ export interface backendInterface {
     createStory(blobId: string, audioId: string | null, songName: string | null, artistName: string | null): Promise<bigint>;
     declineFollowRequest(requester: Principal): Promise<void>;
     deleteExpiredStories(): Promise<void>;
+    deleteMessageForEveryone(recipient: Principal, timestamp: bigint): Promise<void>;
     deletePost(postId: bigint): Promise<void>;
     deleteReel(reelId: bigint): Promise<void>;
     fillSampleData(): Promise<void>;

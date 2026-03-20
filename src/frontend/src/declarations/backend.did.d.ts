@@ -37,6 +37,7 @@ export interface Message {
   'content' : string,
   'from' : Principal,
   'isRead' : boolean,
+  'isDeletedForEveryone' : boolean,
   'timestamp' : bigint,
 }
 export interface Notification {
@@ -145,6 +146,7 @@ export interface _SERVICE {
   >,
   'declineFollowRequest' : ActorMethod<[Principal], undefined>,
   'deleteExpiredStories' : ActorMethod<[], undefined>,
+  'deleteMessageForEveryone' : ActorMethod<[Principal, bigint], undefined>,
   'deletePost' : ActorMethod<[bigint], undefined>,
   'deleteReel' : ActorMethod<[bigint], undefined>,
   'fillSampleData' : ActorMethod<[], undefined>,

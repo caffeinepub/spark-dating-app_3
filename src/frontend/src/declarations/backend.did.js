@@ -38,6 +38,7 @@ export const Message = IDL.Record({
   'content' : IDL.Text,
   'from' : IDL.Principal,
   'isRead' : IDL.Bool,
+  'isDeletedForEveryone' : IDL.Bool,
   'timestamp' : IDL.Int,
 });
 export const Post = IDL.Record({
@@ -169,6 +170,7 @@ export const idlService = IDL.Service({
     ),
   'declineFollowRequest' : IDL.Func([IDL.Principal], [], []),
   'deleteExpiredStories' : IDL.Func([], [], []),
+  'deleteMessageForEveryone' : IDL.Func([IDL.Principal, IDL.Int], [], []),
   'deletePost' : IDL.Func([IDL.Nat], [], []),
   'deleteReel' : IDL.Func([IDL.Nat], [], []),
   'fillSampleData' : IDL.Func([], [], []),
@@ -310,6 +312,7 @@ export const idlFactory = ({ IDL }) => {
     'content' : IDL.Text,
     'from' : IDL.Principal,
     'isRead' : IDL.Bool,
+    'isDeletedForEveryone' : IDL.Bool,
     'timestamp' : IDL.Int,
   });
   const Post = IDL.Record({
@@ -441,6 +444,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'declineFollowRequest' : IDL.Func([IDL.Principal], [], []),
     'deleteExpiredStories' : IDL.Func([], [], []),
+    'deleteMessageForEveryone' : IDL.Func([IDL.Principal, IDL.Int], [], []),
     'deletePost' : IDL.Func([IDL.Nat], [], []),
     'deleteReel' : IDL.Func([IDL.Nat], [], []),
     'fillSampleData' : IDL.Func([], [], []),
